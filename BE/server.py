@@ -1,13 +1,12 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import asyncio
-import json
 import cv2
 import base64
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 import threading
 import time
 import os
@@ -18,16 +17,14 @@ from .main import FallDetectionEngine
 from .database import (
     get_all_settings,
     update_setting,
-    get_all_pushover_devices,
-    replace_all_pushover_devices,
-    verify_user,
     get_setting,
+    verify_user,
 )
 
 app = FastAPI(
-    title="Fall Detection System API",
-    description="Computer Vision-based Fall Detection with FastAPI",
-    version="1.0.0"
+    title="FallCare Sentinel API",
+    description="Real-time Computer Vision Fall Detection with Direct WebSocket Alert",
+    version="2.0.0"
 )
 
 # CORS Configuration
@@ -50,27 +47,34 @@ active_websockets: Dict[int, WebSocket] = {}
 _process = psutil.Process(os.getpid())
 _process.cpu_percent(interval=None)
 _server_start_time = time.time()
-MAX_PUSHOVER_DEVICES = 5
 
 # ==================== SKEMA REQUEST ====================
-
-class PushoverDeviceIn(BaseModel):
-    name: str = Field(min_length=1)
-    key: str = Field(min_length=1)
-
-class PushoverSettingsIn(BaseModel):
-    pushover_devices: List[PushoverDeviceIn]
 
 class LoginIn(BaseModel):
     username: str
     password: str
 
-# ==================== ROUTES ====================
+class SettingsUpdateIn(BaseModel):
+    cameraStatus: Optional[str] = None
+    notifMode: Optional[str] = None  # 'getar', 'dering', 'keduanya'
+    fall_threshold: Optional[float] = None
+    alarm_duration: Optional[int] = Field(None, ge=20, le=900)  # 20 detik s/d 15 menit (900 detik)
+    ringtone_type: Optional[str] = None  # 'alarm', 'ringtone', 'notification'
+
+# ==================== LIFECYCLE ====================
 
 @app.on_event("startup")
 async def startup_event():
+    # Pastikan default setting alarm tersimpan di SQLite jika belum ada
+    if not get_setting("alarm_duration"):
+        update_setting("alarm_duration", 30)  # default 30 detik
+    if not get_setting("ringtone_type"):
+        update_setting("ringtone_type", "alarm")
+    if not get_setting("notifMode"):
+        update_setting("notifMode", "keduanya")
+
     saved_status = get_all_settings().get("cameraStatus", "off")
-    print(f"✓ Server siap. Status kamera tersimpan: {saved_status} (menunggu trigger UI)")
+    print(f"✓ Server Sentinel siap. Status kamera tersimpan: {saved_status}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -78,7 +82,8 @@ async def shutdown_event():
         cv_engine.stop()
     print("✓ CV Engine stopped")
 
-# Serve Frontend
+# ==================== SERVE FRONTEND ====================
+
 app.mount("/static", StaticFiles(directory="FE"), name="static")
 
 @app.get("/", response_class=HTMLResponse)
@@ -134,7 +139,7 @@ async def start_detection():
         if not cv_engine.is_running:
             raise HTTPException(
                 status_code=500,
-                detail="Kamera gagal dibuka. Periksa index kamera di main.py."
+                detail="Kamera gagal dibuka. Periksa index webcam."
             )
         return {"message": "Detection started", "status": "running"}
     return {"message": "Already running", "status": "running"}
@@ -152,8 +157,9 @@ async def get_settings():
     return get_all_settings()
 
 @app.put("/api/settings")
-async def update_settings(settings: dict):
-    for key, value in settings.items():
+async def update_settings(payload: SettingsUpdateIn):
+    data = payload.dict(exclude_unset=True)
+    for key, value in data.items():
         update_setting(key, value)
 
         if key == "fall_threshold":
@@ -164,7 +170,7 @@ async def update_settings(settings: dict):
             elif value == "off" and cv_engine.is_running:
                 cv_engine.stop()
 
-    return {"message": "Settings updated", "settings": settings}
+    return {"message": "Settings updated", "settings": get_all_settings()}
 
 @app.delete("/api/tracking/{track_id}")
 async def reset_tracking(track_id: int):
@@ -172,35 +178,6 @@ async def reset_tracking(track_id: int):
         del cv_engine.tracking_states[track_id]
         return {"message": f"Track {track_id} reset"}
     raise HTTPException(status_code=404, detail="Track ID not found")
-
-# ==================== PUSHOVER SETTINGS ====================
-
-@app.get("/api/settings/pushover")
-async def get_pushover_settings():
-    devices = get_all_pushover_devices()
-    return {
-        "pushover_devices": [
-            {"name": d["name"], "key": d["api_key"]} for d in devices
-        ]
-    }
-
-@app.post("/api/settings/pushover")
-async def update_pushover_settings(payload: PushoverSettingsIn):
-    if len(payload.pushover_devices) > MAX_PUSHOVER_DEVICES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Maksimal {MAX_PUSHOVER_DEVICES} perangkat Pushover diperbolehkan."
-        )
-
-    devices_for_db = [
-        {"name": d.name.strip(), "api_key": d.key.strip()}
-        for d in payload.pushover_devices
-    ]
-    replace_all_pushover_devices(devices_for_db)
-    return {
-        "message": "Pengaturan Pushover disimpan",
-        "count": len(devices_for_db),
-    }
 
 # ==================== WEBSOCKET STREAMING ====================
 
@@ -233,7 +210,7 @@ async def video_stream(websocket: WebSocket):
 
 @app.websocket("/ws/events")
 async def event_stream(websocket: WebSocket):
-    """Endpoint real-time alert fall detection ke client Android & Web UI"""
+    """Mengirim event bahaya instan beserta durasi dan pilihan ringtone ke HP"""
     await websocket.accept()
     client_id = id(websocket)
 
@@ -242,12 +219,19 @@ async def event_stream(websocket: WebSocket):
 
         while True:
             if cv_engine.alert_count > last_alert_count:
-                # Baca preferensi mode notifikasi langsung dari SQLite
+                # Ambil konfigurasi custom alert dari SQLite
                 current_mode = get_setting("notifMode", "keduanya")
+                raw_duration = int(get_setting("alarm_duration", 30))
+                # Validasi batas minimal 20 detik dan maksimal 900 detik (15 menit)
+                duration_sec = max(20, min(900, raw_duration))
+                ringtone_type = get_setting("ringtone_type", "alarm")
+
                 await websocket.send_json({
                     "type": "alert",
                     "message": "Fall detected!",
                     "mode": current_mode,
+                    "duration": duration_sec,
+                    "ringtone": ringtone_type,
                     "timestamp": time.time(),
                     "tracking_data": cv_engine.tracking_states
                 })
@@ -262,23 +246,6 @@ async def event_stream(websocket: WebSocket):
             await asyncio.sleep(1)
     except WebSocketDisconnect:
         print(f"Event client {client_id} disconnected")
-
-@app.websocket("/ws/detect")
-async def detect_stream(websocket: WebSocket):
-    await websocket.accept()
-    client_id = id(websocket)
-    active_websockets[client_id] = websocket
-
-    try:
-        while True:
-            boxes_data = []
-            await websocket.send_json(boxes_data)
-            await asyncio.sleep(0.1)
-    except WebSocketDisconnect:
-        print(f"Detect client {client_id} disconnected")
-    finally:
-        if client_id in active_websockets:
-            del active_websockets[client_id]
 
 @app.websocket("/ws/performance")
 async def performance_stream(websocket: WebSocket):
