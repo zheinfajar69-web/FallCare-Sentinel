@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 import asyncio
 import cv2
 import base64
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import threading
 import time
 import os
@@ -23,8 +23,8 @@ from .database import (
 
 app = FastAPI(
     title="FallCare Sentinel API",
-    description="Real-time Computer Vision Fall Detection with Direct WebSocket Alert",
-    version="2.0.0"
+    description="Multi-Device Direct Emergency Alerting System",
+    version="2.1.0"
 )
 
 # CORS Configuration
@@ -36,12 +36,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize CV Engine
 cv_engine = FallDetectionEngine()
 cv_thread: Optional[threading.Thread] = None
 
-# WebSocket connections tracking
-active_websockets: Dict[int, WebSocket] = {}
+# Tracking Active WebSockets
+active_video_websockets: Dict[int, WebSocket] = {}
+
+# POOL MULTI-DEVICE ANDROID:
+# Menyimpan data: { client_id: {"ws": WebSocket, "ip": str, "name": str, "connected_at": str} }
+connected_emergency_devices: Dict[int, dict] = {}
 
 # Resource Monitoring
 _process = psutil.Process(os.getpid())
@@ -56,25 +59,27 @@ class LoginIn(BaseModel):
 
 class SettingsUpdateIn(BaseModel):
     cameraStatus: Optional[str] = None
-    notifMode: Optional[str] = None  # 'getar', 'dering', 'keduanya'
+    notifMode: Optional[str] = None
     fall_threshold: Optional[float] = None
-    alarm_duration: Optional[int] = Field(None, ge=20, le=900)  # 20 detik s/d 15 menit (900 detik)
-    ringtone_type: Optional[str] = None  # 'alarm', 'ringtone', 'notification'
+    alarm_duration: Optional[int] = Field(None, ge=20, le=900)
+    ringtone_type: Optional[str] = None
+    max_devices: Optional[int] = Field(None, ge=1, le=20)
 
 # ==================== LIFECYCLE ====================
 
 @app.on_event("startup")
 async def startup_event():
-    # Pastikan default setting alarm tersimpan di SQLite jika belum ada
     if not get_setting("alarm_duration"):
-        update_setting("alarm_duration", 30)  # default 30 detik
+        update_setting("alarm_duration", 30)
     if not get_setting("ringtone_type"):
         update_setting("ringtone_type", "alarm")
     if not get_setting("notifMode"):
         update_setting("notifMode", "keduanya")
+    if not get_setting("max_devices"):
+        update_setting("max_devices", 5)
 
     saved_status = get_all_settings().get("cameraStatus", "off")
-    print(f"✓ Server Sentinel siap. Status kamera tersimpan: {saved_status}")
+    print(f"✓ Server Siaga Multi-Device. Status Kamera: {saved_status}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -122,8 +127,23 @@ async def get_status():
         "status": "running" if cv_engine.is_running else "stopped",
         "active_tracks": len(cv_engine.tracking_states),
         "fps": cv_engine.current_fps,
-        "alerts": cv_engine.alert_count
+        "alerts": cv_engine.alert_count,
+        "connected_devices": len(connected_emergency_devices)
     }
+
+@app.get("/api/devices")
+async def get_connected_devices():
+    """Mengembalikan daftar HP darurat yang saat ini terhubung dan siaga."""
+    device_list = []
+    for cid, info in connected_emergency_devices.items():
+        device_list.append({
+            "id": cid,
+            "ip": info["ip"],
+            "name": info["name"],
+            "connected_at": info["connected_at"]
+        })
+    max_dev = int(get_setting("max_devices", 5))
+    return {"devices": device_list, "total": len(device_list), "max_allowed": max_dev}
 
 @app.post("/api/start")
 async def start_detection():
@@ -135,12 +155,8 @@ async def start_detection():
             await asyncio.sleep(0.1)
 
         update_setting('cameraStatus', 'on')
-
         if not cv_engine.is_running:
-            raise HTTPException(
-                status_code=500,
-                detail="Kamera gagal dibuka. Periksa index webcam."
-            )
+            raise HTTPException(status_code=500, detail="Kamera gagal dibuka.")
         return {"message": "Detection started", "status": "running"}
     return {"message": "Already running", "status": "running"}
 
@@ -161,7 +177,6 @@ async def update_settings(payload: SettingsUpdateIn):
     data = payload.dict(exclude_unset=True)
     for key, value in data.items():
         update_setting(key, value)
-
         if key == "fall_threshold":
             cv_engine.fall_time_threshold = float(value)
         elif key == "cameraStatus":
@@ -172,61 +187,71 @@ async def update_settings(payload: SettingsUpdateIn):
 
     return {"message": "Settings updated", "settings": get_all_settings()}
 
-@app.delete("/api/tracking/{track_id}")
-async def reset_tracking(track_id: int):
-    if track_id in cv_engine.tracking_states:
-        del cv_engine.tracking_states[track_id]
-        return {"message": f"Track {track_id} reset"}
-    raise HTTPException(status_code=404, detail="Track ID not found")
-
 # ==================== WEBSOCKET STREAMING ====================
 
 @app.websocket("/ws/video")
 async def video_stream(websocket: WebSocket):
     await websocket.accept()
     client_id = id(websocket)
-    active_websockets[client_id] = websocket
+    active_video_websockets[client_id] = websocket
 
     try:
         while True:
             if cv_engine.current_frame is not None:
-                success, buffer = cv2.imencode(
-                    ".jpg",
-                    cv_engine.current_frame,
-                    [cv2.IMWRITE_JPEG_QUALITY, 75]
-                )
+                success, buffer = cv2.imencode(".jpg", cv_engine.current_frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
                 if success:
                     jpg_as_text = base64.b64encode(buffer).decode("utf-8")
-                    await websocket.send_json({
-                        "type": "frame",
-                        "data": jpg_as_text
-                    })
+                    await websocket.send_json({"type": "frame", "data": jpg_as_text})
             await asyncio.sleep(1 / 15)
     except WebSocketDisconnect:
-        print(f"Video client {client_id} disconnected")
+        pass
     finally:
-        if client_id in active_websockets:
-            del active_websockets[client_id]
+        if client_id in active_video_websockets:
+            del active_video_websockets[client_id]
 
 @app.websocket("/ws/events")
 async def event_stream(websocket: WebSocket):
-    """Mengirim event bahaya instan beserta durasi dan pilihan ringtone ke HP"""
+    """Menerima koneksi dari banyak HP Android sekaligus & broadcast serentak."""
     await websocket.accept()
     client_id = id(websocket)
+    client_ip = websocket.client.host if websocket.client else "Unknown"
+
+    # Periksa batas maksimal device
+    max_allowed = int(get_setting("max_devices", 5))
+    if len(connected_emergency_devices) >= max_allowed:
+        await websocket.close(code=1008, reason="Kuota perangkat darurat penuh.")
+        return
+
+    # Registrasi device darurat ke pool
+    connected_emergency_devices[client_id] = {
+        "ws": websocket,
+        "ip": client_ip,
+        "name": f"Device-{client_ip.split('.')[-1]}", # Default penamaan otomatis
+        "connected_at": time.strftime("%H:%M:%S")
+    }
+    print(f"[+] Device Darurat Baru Terhubung: {client_ip} (Total Siaga: {len(connected_emergency_devices)})")
 
     try:
         last_alert_count = cv_engine.alert_count
 
         while True:
+            # 1. Mendeteksi handshake / update nama dari Android
+            try:
+                msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
+                data = json.loads(msg)
+                if data.get("type") == "register_name":
+                    connected_emergency_devices[client_id]["name"] = data.get("name", "Unknown")
+            except asyncio.TimeoutError:
+                pass
+
+            # 2. Trigger Jatuh Terdeteksi -> Broadcast ke SELURUH device secara paralel
             if cv_engine.alert_count > last_alert_count:
-                # Ambil konfigurasi custom alert dari SQLite
                 current_mode = get_setting("notifMode", "keduanya")
                 raw_duration = int(get_setting("alarm_duration", 30))
-                # Validasi batas minimal 20 detik dan maksimal 900 detik (15 menit)
                 duration_sec = max(20, min(900, raw_duration))
                 ringtone_type = get_setting("ringtone_type", "alarm")
 
-                await websocket.send_json({
+                alert_payload = {
                     "type": "alert",
                     "message": "Fall detected!",
                     "mode": current_mode,
@@ -234,25 +259,33 @@ async def event_stream(websocket: WebSocket):
                     "ringtone": ringtone_type,
                     "timestamp": time.time(),
                     "tracking_data": cv_engine.tracking_states
-                })
+                }
+
+                # Kirim serentak ke semua HP tanpa menunggu antrian
+                tasks = [dev["ws"].send_json(alert_payload) for dev in connected_emergency_devices.values()]
+                if tasks:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+
                 last_alert_count = cv_engine.alert_count
 
+            # 3. Heartbeat keeping
             await websocket.send_json({
                 "type": "heartbeat",
                 "timestamp": time.time(),
-                "active_tracks": len(cv_engine.tracking_states)
+                "connected_devices": len(connected_emergency_devices)
             })
-
             await asyncio.sleep(1)
+
     except WebSocketDisconnect:
-        print(f"Event client {client_id} disconnected")
+        pass
+    finally:
+        if client_id in connected_emergency_devices:
+            del connected_emergency_devices[client_id]
+            print(f"[-] Device Darurat Terputus: {client_ip} (Sisa: {len(connected_emergency_devices)})")
 
 @app.websocket("/ws/performance")
 async def performance_stream(websocket: WebSocket):
     await websocket.accept()
-    client_id = id(websocket)
-    active_websockets[client_id] = websocket
-
     try:
         while True:
             cpu_percent = _process.cpu_percent(interval=None)
@@ -268,27 +301,8 @@ async def performance_stream(websocket: WebSocket):
             })
             await asyncio.sleep(1)
     except WebSocketDisconnect:
-        print(f"Performance client {client_id} disconnected")
-    finally:
-        if client_id in active_websockets:
-            del active_websockets[client_id]
-
-# ==================== HEALTH CHECK ====================
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "healthy",
-        "cv_engine": "running" if cv_engine.is_running else "stopped",
-        "timestamp": time.time()
-    }
+        pass
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "server:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run("server:app", host="0.0.0.0", port=8000, reload=True, log_level="info")
