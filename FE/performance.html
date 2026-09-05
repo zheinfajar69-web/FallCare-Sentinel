@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="id" class="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Performa — Sentra Pengawas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"Iowan Old Style"', '"Palatino Linotype"', 'ui-serif', 'Georgia', 'serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          ui: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          paper:   { DEFAULT: '#EDE6D6', soft: '#F5F0E4', deep: '#E1D8C2' },
+          ink:     { DEFAULT: '#2B281F', soft: '#4A4636', faint: '#7A7460' },
+          moss:    { DEFAULT: '#3F4B3B', deep: '#2E3A2A', bright: '#5C7052' },
+          rust:    { DEFAULT: '#9C4A2E' },
+          slate:   { 900: '#191A16', 850: '#1F211C', 800: '#262822', 700: '#33352C', 600: '#494B40' },
+          bone:    { DEFAULT: '#D8CDA8' },
+        },
+        borderRadius: { none: '0px' }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- Menggunakan Chart.js untuk grafik performa 30 detik -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js" crossorigin="anonymous"></script>
+
+<style>
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
+  ::selection { background: #9C4A2E; color: #F5F0E4; }
+
+  /* Sidebar: collapsed = ikon saja, hover = melebar. */
+  .sidebar-rail { width: 4.25rem; transition: width 160ms ease; }
+  .sidebar-rail:hover, .sidebar-rail.pinned-open { width: 15.5rem; }
+  .sidebar-rail .label-text {
+    opacity: 0; max-width: 0; overflow: hidden; white-space: nowrap;
+    transition: opacity 120ms ease, max-width 160ms ease;
+  }
+  .sidebar-rail:hover .label-text, .sidebar-rail.pinned-open .label-text {
+    opacity: 1; max-width: 10rem;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(122,116,96,0.35); border-radius: 3px; }
+
+  @keyframes pulse-rec {
+    0%, 100% { opacity: 1; } 50% { opacity: .35; }
+  }
+  .status-live { animation: pulse-rec 2.2s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-live { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid #9C4A2E; outline-offset: 2px;
+  }
+</style>
+</head>
+
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-bone font-ui antialiased min-h-screen">
+
+<div class="flex min-h-screen">
+
+  <!-- ============ SIDEBAR DESKTOP ============ -->
+  <aside id="sidebar" class="sidebar-rail hidden md:flex flex-col justify-between shrink-0 border-r border-ink/10 dark:border-bone/10 bg-paper-soft dark:bg-slate-850 overflow-hidden z-20 relative">
+    <div>
+      <div class="h-16 flex items-center gap-3 px-[1.15rem] border-b border-ink/10 dark:border-bone/10">
+        <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+          <div class="w-2 h-2 bg-rust"></div>
+        </div>
+        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+      </div>
+
+      <nav class="mt-3 flex flex-col gap-1 px-3">
+        <a href="camera.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="label-text text-[14px]">Kamera</span>
+        </a>
+        <a href="performance.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone" aria-current="page">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="label-text text-[14px]">Performa</span>
+        </a>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="label-text text-[14px]">Pengaturan</span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="px-3 pb-4">
+      <button id="themeToggle" class="w-full flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg id="iconMoon" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+        <svg id="iconSun" class="w-5 h-5 shrink-0 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span class="label-text text-[14px]">Mode gelap</span>
+      </button>
+      <a href="login.html" class="w-full flex items-center gap-3 px-2.5 py-2.5 mt-1 text-ink/55 dark:text-bone/50 hover:text-rust dark:hover:text-rust hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span class="label-text text-[14px]">Keluar</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ============ HAMBURGER MOBILE ============ -->
+  <header class="md:hidden fixed top-0 inset-x-0 z-30 h-14 flex items-center justify-between px-4 bg-paper-soft/95 dark:bg-slate-850/95 backdrop-blur border-b border-ink/10 dark:border-bone/10">
+    <button id="hamburgerBtn" class="p-2 -ml-2 focus-ring" aria-label="Buka menu" aria-expanded="false">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">SENTRA-01 / PERFORMA</span>
+    <span id="mobileConnectionStatus" class="w-2 h-2 bg-moss-bright rounded-full status-live"></span>
+  </header>
+
+  <!-- Overlay menu mobile -->
+  <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 z-40 hidden">
+    <div id="mobileOverlayBg" class="absolute inset-0 bg-ink/40 dark:bg-black/60"></div>
+    <nav class="absolute left-0 top-0 bottom-0 w-64 bg-paper-soft dark:bg-slate-850 border-r border-ink/10 dark:border-bone/10 flex flex-col justify-between py-4 px-3">
+      <div>
+        <div class="flex items-center gap-3 px-2.5 pb-4 mb-2 border-b border-ink/10 dark:border-bone/10">
+          <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+            <div class="w-2 h-2 bg-rust"></div>
+          </div>
+          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+        </div>
+        <a href="camera.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="text-[14px]">Kamera</span>
+        </a>
+        <a href="performance.html" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="text-[14px]">Performa</span>
+        </a>
+        <a href="settings.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="text-[14px]">Pengaturan</span>
+        </a>
+      </div>
+      <div>
+        <button id="themeToggleMobile" class="w-full flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50 focus-ring">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+          <span class="text-[14px]">Mode gelap</span>
+        </button>
+        <a href="login.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          <span class="text-[14px]">Keluar</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <main class="flex-1 min-w-0 pt-14 md:pt-0">
+    <div class="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
+
+      <header class="flex items-baseline justify-between mb-8">
+        <div>
+          <h1 class="text-[22px] md:text-[26px] leading-tight">Performa Sistem</h1>
+          <p class="text-[13px] text-ink/55 dark:text-bone/45 mt-0.5 flex items-center gap-2">
+            <span id="connIndicator" class="w-2 h-2 bg-moss-bright rounded-full status-live"></span>
+            <span id="connText">Terhubung ke server (memperbarui setiap detik)</span>
+          </p>
+        </div>
+        <div class="hidden lg:flex items-center gap-2 font-mono text-[12px] text-ink/50 dark:text-bone/40">
+          <span id="clock">--:--:--</span>
+        </div>
+      </header>
+
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        <!-- ===== CPU CARD ===== -->
+        <article class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850 flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+            <h2 class="text-[14px] font-medium">Penggunaan CPU</h2>
+            <span id="valCpu" class="font-mono text-[14px] font-semibold text-moss dark:text-moss-bright">0%</span>
+          </div>
+          <div class="p-4 h-[180px] w-full relative">
+            <canvas id="chartCpu"></canvas>
+          </div>
+        </article>
+
+        <!-- ===== RAM CARD ===== -->
+        <article class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850 flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+            <h2 class="text-[14px] font-medium">Alokasi RAM (Server)</h2>
+            <span id="valRam" class="font-mono text-[14px] font-semibold text-rust">0 MB</span>
+          </div>
+          <div class="p-4 h-[180px] w-full relative">
+            <canvas id="chartRam"></canvas>
+          </div>
+        </article>
+
+        <!-- ===== LATENCY CARD ===== -->
+        <article class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850 flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+            <h2 class="text-[14px] font-medium">Latensi Inferensi (YOLO)</h2>
+            <span id="valLat" class="font-mono text-[14px] font-semibold text-ink dark:text-bone">0 ms</span>
+          </div>
+          <div class="p-4 h-[180px] w-full relative">
+            <canvas id="chartLat"></canvas>
+          </div>
+        </article>
+
+        <!-- ===== UPTIME CARD ===== -->
+        <article class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850 flex flex-col">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+            <h2 class="text-[14px] font-medium">Uptime Server</h2>
+            <span id="valUptime" class="font-mono text-[14px] font-semibold text-moss dark:text-moss-bright">00:00:00</span>
+          </div>
+          <div class="p-4 h-[180px] w-full relative">
+            <canvas id="chartUptime"></canvas>
+          </div>
+        </article>
+
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------- Tema (Selaras dengan Kamera) ---------- */
+const root = document.documentElement;
+function applyTheme(dark){
+  root.classList.toggle('dark', dark);
+  localStorage.setItem('sentra_theme', dark ? 'dark' : 'light');
+  document.getElementById('iconMoon').classList.toggle('hidden', dark);
+  document.getElementById('iconSun').classList.toggle('hidden', !dark);
+  
+  // Perbarui warna grafik setiap pergantian tema
+  if(window.updateChartColors) window.updateChartColors(dark);
+}
+applyTheme(localStorage.getItem('sentra_theme') === 'dark');
+document.getElementById('themeToggle').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+document.getElementById('themeToggleMobile').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+
+/* ---------- Sidebar & Mobile Menu ---------- */
+const sidebar = document.getElementById('sidebar');
+sidebar.addEventListener('dblclick', () => sidebar.classList.toggle('pinned-open'));
+
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+const mobileOverlayBg = document.getElementById('mobileOverlayBg');
+function openMobileMenu(){ mobileMenuOverlay.classList.remove('hidden'); hamburgerBtn.setAttribute('aria-expanded','true'); }
+function closeMobileMenu(){ mobileMenuOverlay.classList.add('hidden'); hamburgerBtn.setAttribute('aria-expanded','false'); }
+hamburgerBtn.addEventListener('click', openMobileMenu);
+mobileOverlayBg.addEventListener('click', closeMobileMenu);
+
+/* ---------- Jam ---------- */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID', { hour12:false });
+}
+tickClock(); setInterval(tickClock, 1000);
+
+/* =====================================================================
+   MANAJEMEN GRAFIK (Chart.js)
+   Visualisasi data dalam rentang waktu 30 detik (30 titik data).
+===================================================================== */
+Chart.defaults.font.family = '"IBM Plex Mono", monospace';
+Chart.defaults.font.size = 11;
+Chart.defaults.plugins.tooltip.enabled = false; 
+
+// Buat array kosong isi 30 item untuk sumbu X (detik ke-30 hingga detik ke-1)
+const labels30s = Array.from({length: 30}, (_, i) => (30 - i) + 'd');
+
+// Fungsi pembantu membuat grafik untuk menghindari pengulangan kode
+function createLineChart(canvasId, colorStr, yAxisMax = null, isUptime = false) {
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels30s,
+      datasets: [{
+        data: Array(30).fill(0), // Nilai awal 0
+        borderColor: colorStr,
+        backgroundColor: colorStr + '20', // Opacity 20% untuk fill
+        borderWidth: 2,
+        fill: true,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0.3
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250, easing: 'linear' }, // Animasi mengalir
+      scales: {
+        x: { 
+          display: true, 
+          grid: { color: 'rgba(122,116,96,0.1)', drawBorder: false },
+          ticks: { maxTicksLimit: 6 }
+        },
+        y: { 
+          display: true, 
+          min: 0, 
+          max: yAxisMax,
+          grid: { color: 'rgba(122,116,96,0.1)', drawBorder: false },
+          ticks: { 
+            callback: function(value) {
+              if(isUptime) return value === 100 ? 'UP' : 'DOWN';
+              return value;
+            }
+          }
+        }
+      },
+      plugins: { legend: { display: false } }
+    }
+  });
+}
+
+// Inisialisasi 4 grafik
+const charts = {
+  cpu: createLineChart('chartCpu', '#5C7052', 100),       // Moss Bright
+  ram: createLineChart('chartRam', '#9C4A2E', null),      // Rust (Max dinamis sesuai kapasitas)
+  lat: createLineChart('chartLat', '#4A4636', null),      // Ink soft (Max dinamis ms)
+  up:  createLineChart('chartUptime', '#5C7052', 105, true) // Skala statis 0-100 untuk status hidup (UP)
+};
+
+// Ubah warna teks/grid secara halus berdasarkan mode terang/gelap
+window.updateChartColors = function(isDark) {
+  const gridColor = isDark ? 'rgba(216,205,168,0.08)' : 'rgba(43,40,31,0.08)';
+  const textColor = isDark ? 'rgba(216,205,168,0.5)' : 'rgba(43,40,31,0.5)';
+  
+  Object.values(charts).forEach(chart => {
+    chart.options.scales.x.grid.color = gridColor;
+    chart.options.scales.y.grid.color = gridColor;
+    chart.options.scales.x.ticks.color = textColor;
+    chart.options.scales.y.ticks.color = textColor;
+    
+    // Perbarui warna garis Latency (karena menggunakan warna netral ink/bone)
+    if(chart.canvas.id === 'chartLat') {
+      chart.data.datasets[0].borderColor = isDark ? '#D8CDA8' : '#4A4636'; // Bone / Ink Soft
+      chart.data.datasets[0].backgroundColor = isDark ? 'rgba(216,205,168,0.15)' : 'rgba(74,70,54,0.15)';
+    }
+    chart.update();
+  });
+};
+// Eksekusi warna pertama kali
+window.updateChartColors(root.classList.contains('dark'));
+
+/* =====================================================================
+   KONEKSI BACKEND (WebSocket)
+   TIDAK ADA PLACEHOLDER: Ini adalah jembatan langsung ke server Python.
+   Format JSON dari server yang diharapkan:
+   {
+     "cpu": 45,             // persentase
+     "ram_mb": 1250,        // penggunaan dalam MB
+     "latency_ms": 32,      // kecepatan inferensi YOLO dalam ms
+     "uptime_sec": 86400    // total detik server menyala
+   }
+===================================================================== */
+let wsPerf = null;
+let fallbackInterval = null;
+
+// Fungsi untuk mendorong data baru ke array chart (menggeser data lama)
+function pushDataToChart(chart, newValue) {
+  const dataArray = chart.data.datasets[0].data;
+  dataArray.push(newValue);
+  dataArray.shift();
+  chart.update();
+}
+
+// Fungsi helper merubah detik menjadi HH:MM:SS
+function formatUptime(totalSeconds) {
+  const d = Math.floor(totalSeconds / (3600*24));
+  const h = Math.floor(totalSeconds % (3600*24) / 3600);
+  const m = Math.floor(totalSeconds % 3600 / 60);
+  const s = Math.floor(totalSeconds % 60);
+  
+  let str = "";
+  if (d > 0) str += `${d}h `;
+  str += `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  return str;
+}
+
+// Update DOM dan Grafik setiap kali data diterima
+function updateMetricsUI(data) {
+  // Update Teks Angka
+  document.getElementById('valCpu').textContent = `${data.cpu.toFixed(1)}%`;
+  document.getElementById('valRam').textContent = `${Math.round(data.ram_mb)} MB`;
+  document.getElementById('valLat').textContent = `${Math.round(data.latency_ms)} ms`;
+  document.getElementById('valUptime').textContent = formatUptime(data.uptime_sec);
+  
+  // Update Grafik (menggeser ke kiri untuk durasi 30 detik)
+  pushDataToChart(charts.cpu, data.cpu);
+  pushDataToChart(charts.ram, data.ram_mb);
+  pushDataToChart(charts.lat, data.latency_ms);
+  
+  // Grafik uptime dipetakan flat 100% jika data jalan
+  pushDataToChart(charts.up, 100); 
+}
+
+function setConnectionUI(connected) {
+  const dot = document.getElementById('connIndicator');
+  const txt = document.getElementById('connText');
+  const mobileDot = document.getElementById('mobileConnectionStatus');
+  
+  if(connected) {
+    dot.className = 'w-2 h-2 rounded-full bg-moss-bright status-live';
+    mobileDot.className = 'w-2 h-2 rounded-full bg-moss-bright status-live';
+    txt.textContent = 'Terhubung ke server (memperbarui setiap detik)';
+  } else {
+    dot.className = 'w-2 h-2 rounded-full bg-rust';
+    mobileDot.className = 'w-2 h-2 rounded-full bg-rust';
+    txt.textContent = 'Menunggu koneksi dari server SQLite/Python... (Menjalankan mode simulasi)';
+  }
+}
+
+// Inisialisasi Koneksi Real ke Backend
+function connectPerformanceSocket() {
+  try {
+    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/performance';
+    wsPerf = new WebSocket(url);
+    
+    wsPerf.onopen = () => {
+      setConnectionUI(true);
+      if(fallbackInterval) { clearInterval(fallbackInterval); fallbackInterval = null; }
+    };
+    
+    wsPerf.onmessage = (ev) => {
+      try {
+        const payload = JSON.parse(ev.data);
+        updateMetricsUI(payload);
+      } catch(e) {
+        console.error("Format data performa tidak valid", e);
+      }
+    };
+    
+    wsPerf.onclose = () => {
+      setConnectionUI(false);
+      wsPerf = null;
+      startSimulationFallback(); // Fallback jika socket tertutup/belum ter-deploy
+      setTimeout(connectPerformanceSocket, 5000); // Reconnect loop
+    };
+    
+    wsPerf.onerror = () => {
+      if(wsPerf) wsPerf.close();
+    };
+    
+  } catch(e) {
+    setConnectionUI(false);
+    startSimulationFallback();
+  }
+}
+
+// --- FALLBACK UNTUK PENGUJIAN FRONTEND UI ---
+// (Berjalan otomatis jika /ws/performance pada server backend Python belum hidup)
+let simUptime = 12450; // Detik fiktif
+let simCpu = 25;
+function startSimulationFallback() {
+  if(fallbackInterval) return;
+  setConnectionUI(false);
+  
+  fallbackInterval = setInterval(() => {
+    // Generasi data tiruan yang masuk akal
+    simCpu = Math.max(5, Math.min(95, simCpu + (Math.random() * 10 - 5)));
+    const simData = {
+      cpu: simCpu,
+      ram_mb: 1024 + (Math.random() * 50),
+      latency_ms: 20 + (Math.random() * 15),
+      uptime_sec: simUptime++
+    };
+    updateMetricsUI(simData);
+  }, 1000);
+}
+
+// Mulai menghubungkan saat halaman termuat
+connectPerformanceSocket();
+
+</script>
+
+</body>
+</html>
