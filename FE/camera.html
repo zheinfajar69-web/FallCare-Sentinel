@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="id" class="">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kamera — Sentra Pengawas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"Iowan Old Style"', '"Palatino Linotype"', 'ui-serif', 'Georgia', 'serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          ui: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          paper:   { DEFAULT: '#EDE6D6', soft: '#F5F0E4', deep: '#E1D8C2' },
+          ink:     { DEFAULT: '#2B281F', soft: '#4A4636', faint: '#7A7460' },
+          moss:    { DEFAULT: '#3F4B3B', deep: '#2E3A2A', bright: '#5C7052' },
+          rust:    { DEFAULT: '#9C4A2E' },
+          slate:   { 900: '#191A16', 850: '#1F211C', 800: '#262822', 700: '#33352C', 600: '#494B40' },
+          bone:    { DEFAULT: '#D8CDA8' },
+        },
+        borderRadius: { none: '0px' }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<!-- MediaPipe Pose: dipakai untuk menggambar skeleton (bone) langsung di browser.
+     Model deteksi jatuh utama (YOLO) tetap berjalan di sisi server/Python;
+     hasil bounding box dari YOLO dikirim balik lewat WebSocket (lihat fungsi connectDetectionSocket)
+     dan digambar di canvas yang sama. Skeleton MediaPipe berjalan paralel sebagai
+     visual bantu real-time ketika belum ada koneksi ke server deteksi. -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
+<style>
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
+  ::selection { background: #9C4A2E; color: #F5F0E4; }
+
+  /* Sidebar: collapsed = ikon saja, hover = melebar. Ini state, bukan animasi dekoratif. */
+  .sidebar-rail { width: 4.25rem; transition: width 160ms ease; }
+  .sidebar-rail:hover, .sidebar-rail.pinned-open { width: 15.5rem; }
+  .sidebar-rail .label-text {
+    opacity: 0; max-width: 0; overflow: hidden; white-space: nowrap;
+    transition: opacity 120ms ease, max-width 160ms ease;
+  }
+  .sidebar-rail:hover .label-text, .sidebar-rail.pinned-open .label-text {
+    opacity: 1; max-width: 10rem;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(122,116,96,0.35); border-radius: 3px; }
+
+  @keyframes pulse-rec {
+    0%, 100% { opacity: 1; } 50% { opacity: .35; }
+  }
+  .status-live { animation: pulse-rec 2.2s ease-in-out infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-live { animation: none; }
+    * { transition-duration: 0.01ms !important; }
+  }
+
+  input[type="range"] { -webkit-appearance: none; background: transparent; }
+  input[type="range"]::-webkit-slider-runnable-track {
+    height: 3px; background: currentColor; opacity: .3; border-radius: 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; margin-top: -6px; width: 15px; height: 15px;
+    background: currentColor; border-radius: 2px; cursor: pointer;
+  }
+
+  .focus-ring:focus-visible {
+    outline: 2px solid #9C4A2E; outline-offset: 2px;
+  }
+</style>
+</head>
+
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-bone font-ui antialiased min-h-screen">
+
+<div class="flex min-h-screen">
+
+  <!-- ============ SIDEBAR DESKTOP ============ -->
+  <aside id="sidebar" class="sidebar-rail hidden md:flex flex-col justify-between shrink-0 border-r border-ink/10 dark:border-bone/10 bg-paper-soft dark:bg-slate-850 overflow-hidden">
+    <div>
+      <div class="h-16 flex items-center gap-3 px-[1.15rem] border-b border-ink/10 dark:border-bone/10">
+        <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+          <div class="w-2 h-2 bg-rust"></div>
+        </div>
+        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+      </div>
+
+      <nav class="mt-3 flex flex-col gap-1 px-3">
+        <a href="camera.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone" aria-current="page">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="label-text text-[14px]">Kamera</span>
+        </a>
+        <a href="performance.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="label-text text-[14px]">Performa</span>
+        </a>
+        <a href="settings.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="label-text text-[14px]">Pengaturan</span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="px-3 pb-4">
+      <button id="themeToggle" class="w-full flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg id="iconMoon" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+        <svg id="iconSun" class="w-5 h-5 shrink-0 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span class="label-text text-[14px]">Mode gelap</span>
+      </button>
+      <a href="login.html" class="w-full flex items-center gap-3 px-2.5 py-2.5 mt-1 text-ink/55 dark:text-bone/50 hover:text-rust dark:hover:text-rust hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span class="label-text text-[14px]">Keluar</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ============ HAMBURGER MOBILE ============ -->
+  <header class="md:hidden fixed top-0 inset-x-0 z-30 h-14 flex items-center justify-between px-4 bg-paper-soft/95 dark:bg-slate-850/95 backdrop-blur border-b border-ink/10 dark:border-bone/10">
+    <button id="hamburgerBtn" class="p-2 -ml-2 focus-ring" aria-label="Buka menu" aria-expanded="false">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">SENTRA-01 / KAMERA</span>
+    <span class="w-2 h-2 bg-moss-bright rounded-full status-live"></span>
+  </header>
+
+  <!-- Overlay menu mobile -->
+  <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 z-40 hidden">
+    <div id="mobileOverlayBg" class="absolute inset-0 bg-ink/40 dark:bg-black/60"></div>
+    <nav class="absolute left-0 top-0 bottom-0 w-64 bg-paper-soft dark:bg-slate-850 border-r border-ink/10 dark:border-bone/10 flex flex-col justify-between py-4 px-3">
+      <div>
+        <div class="flex items-center gap-3 px-2.5 pb-4 mb-2 border-b border-ink/10 dark:border-bone/10">
+          <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+            <div class="w-2 h-2 bg-rust"></div>
+          </div>
+          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+        </div>
+        <a href="camera.html" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="text-[14px]">Kamera</span>
+        </a>
+        <a href="performance.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="text-[14px]">Performa</span>
+        </a>
+        <a href="settings.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="text-[14px]">Pengaturan</span>
+        </a>
+      </div>
+      <div>
+        <button id="themeToggleMobile" class="w-full flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50 focus-ring">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+          <span class="text-[14px]">Mode gelap</span>
+        </button>
+        <a href="login.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          <span class="text-[14px]">Keluar</span>
+        </a>
+      </div>
+    </nav>
+  </div>
+
+  <!-- ============ MAIN ============ -->
+  <main class="flex-1 min-w-0 pt-14 md:pt-0">
+    <div class="max-w-[1400px] mx-auto px-4 md:px-8 py-6 md:py-8">
+
+      <div class="flex items-baseline justify-between mb-6">
+        <div>
+          <h1 class="text-[22px] md:text-[26px] leading-tight">Kamera pengawas</h1>
+          <p class="text-[13px] text-ink/55 dark:text-bone/45 mt-0.5">Deteksi rangka tubuh berjalan langsung di peramban ini, sejajar dengan deteksi utama di server.</p>
+        </div>
+        <div class="hidden lg:flex items-center gap-2 font-mono text-[12px] text-ink/50 dark:text-bone/40">
+          <span id="clock">--:--:--</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_340px] gap-5">
+
+        <!-- ===== PANEL KAMERA ===== -->
+        <div class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+            <div class="flex items-center gap-2.5">
+              <span id="statusDot" class="w-2 h-2 bg-ink/20 dark:bg-bone/20 rounded-full"></span>
+              <span id="statusText" class="font-mono text-[12px] text-ink/55 dark:text-bone/45">Kamera tidak aktif</span>
+            </div>
+            <div class="flex items-center gap-3 font-mono text-[12px] text-ink/45 dark:text-bone/35">
+              <span id="resLabel">— × —</span>
+              <span id="fpsLabel">0 fps</span>
+            </div>
+          </div>
+
+          <div class="relative bg-slate-900 dark:bg-black flex items-center justify-center min-h-[280px] md:min-h-[420px]">
+            <video id="video" class="hidden" autoplay playsinline muted></video>
+            <canvas id="outputCanvas" class="max-w-full max-h-[70vh] w-auto h-auto"></canvas>
+
+            <!-- state kosong sebelum kamera dinyalakan -->
+            <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center gap-4 text-bone/70 px-6 text-center">
+              <svg class="w-11 h-11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+              <div>
+                <p class="text-[14px]">Kamera belum diaktifkan</p>
+                <p class="text-[12px] text-bone/45 mt-1 max-w-[300px]">Nyalakan untuk mulai memantau dan menggambar rangka tubuh secara langsung.</p>
+              </div>
+              <button id="startCamBtn" class="px-4 py-2 bg-bone text-ink text-[13px] hover:bg-white transition-colors focus-ring">
+                Nyalakan kamera
+              </button>
+            </div>
+
+            <!-- badge deteksi -->
+            <div id="detectBadge" class="hidden absolute top-3 left-3 flex items-center gap-2 bg-slate-900/80 backdrop-blur px-2.5 py-1.5 border border-bone/10">
+              <span class="w-1.5 h-1.5 bg-moss-bright rounded-full status-live"></span>
+              <span class="font-mono text-[11px] text-bone/80">rangka: <span id="poseCount">0</span> titik terdeteksi</span>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between px-4 py-3 border-t border-ink/10 dark:border-bone/10">
+            <button id="stopCamBtn" disabled class="px-3.5 py-2 border border-ink/20 dark:border-bone/20 text-[13px] text-ink/40 dark:text-bone/30 disabled:cursor-not-allowed enabled:text-ink enabled:dark:text-bone enabled:hover:bg-ink/[0.05] enabled:dark:hover:bg-bone/10 focus-ring transition-colors">
+              Matikan kamera
+            </button>
+            <p class="text-[12px] text-ink/40 dark:text-bone/35">Tidak ada mode rekam — ini pemantauan langsung.</p>
+          </div>
+        </div>
+
+        <!-- ===== PANEL KONTROL KANAN ===== -->
+        <div class="flex flex-col gap-5">
+
+          <!-- Filter efek -->
+          <div class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
+            <div class="px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+              <h2 class="text-[14px]">Filter tampilan</h2>
+              <p class="text-[12px] text-ink/45 dark:text-bone/40 mt-0.5">Hanya mengubah tampilan, deteksi tidak terpengaruh.</p>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2">
+              <button data-filter="normal" class="filter-btn is-active flex flex-col items-center gap-2 py-3 border border-ink/15 dark:border-bone/15 text-[12px] focus-ring">
+                <span class="w-8 h-8 rounded-full" style="background:linear-gradient(135deg,#9C4A2E,#3F4B3B)"></span>
+                Normal
+              </button>
+              <button data-filter="invert" class="filter-btn flex flex-col items-center gap-2 py-3 border border-ink/15 dark:border-bone/15 text-[12px] focus-ring">
+                <span class="w-8 h-8 rounded-full" style="background:linear-gradient(135deg,#2b74d1,#c94f6a); filter:invert(1)"></span>
+                Inversi warna
+              </button>
+              <button data-filter="grayscale" class="filter-btn flex flex-col items-center gap-2 py-3 border border-ink/15 dark:border-bone/15 text-[12px] focus-ring">
+                <span class="w-8 h-8 rounded-full bg-gradient-to-br from-white to-black"></span>
+                Hitam putih
+              </button>
+            </div>
+            <div class="px-4 pb-4">
+              <label class="flex items-center justify-between text-[12px] text-ink/55 dark:text-bone/45 mb-1.5">
+                <span>Gambar rangka (bone)</span>
+                <span id="poseToggleState" class="font-mono">Aktif</span>
+              </label>
+              <button id="poseToggle" class="w-full h-8 relative border border-ink/20 dark:border-bone/20 flex items-center px-1 focus-ring" role="switch" aria-checked="true">
+                <span id="poseKnob" class="h-6 w-[calc(50%-4px)] bg-moss-bright transition-all duration-150 ml-auto"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Notifikasi Pushover -->
+          <div class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
+            <div class="px-4 py-3 border-b border-ink/10 dark:border-bone/10">
+              <h2 class="text-[14px]">Notifikasi darurat</h2>
+              <p class="text-[12px] text-ink/45 dark:text-bone/40 mt-0.5">Cara perangkat ini memberi tahu saat jatuh terdeteksi.</p>
+            </div>
+            <div class="p-4 flex flex-col gap-2.5">
+              <label class="flex items-center gap-3 px-3 py-2.5 border border-ink/12 dark:border-bone/12 cursor-pointer has-[:checked]:border-moss dark:has-[:checked]:border-moss-bright has-[:checked]:bg-moss/[0.06] dark:has-[:checked]:bg-moss-bright/10">
+                <input type="radio" name="notifMode" value="getar" class="accent-moss w-4 h-4">
+                <div>
+                  <p class="text-[13px]">Getar saja</p>
+                  <p class="text-[11px] text-ink/45 dark:text-bone/40">Senyap, cocok untuk malam hari</p>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 px-3 py-2.5 border border-ink/12 dark:border-bone/12 cursor-pointer has-[:checked]:border-moss dark:has-[:checked]:border-moss-bright has-[:checked]:bg-moss/[0.06] dark:has-[:checked]:bg-moss-bright/10">
+                <input type="radio" name="notifMode" value="dering" class="accent-moss w-4 h-4">
+                <div>
+                  <p class="text-[13px]">Dering saja</p>
+                  <p class="text-[11px] text-ink/45 dark:text-bone/40">Suara alarm penuh</p>
+                </div>
+              </label>
+              <label class="flex items-center gap-3 px-3 py-2.5 border border-ink/12 dark:border-bone/12 cursor-pointer has-[:checked]:border-moss dark:has-[:checked]:border-moss-bright has-[:checked]:bg-moss/[0.06] dark:has-[:checked]:bg-moss-bright/10">
+                <input type="radio" name="notifMode" value="keduanya" checked class="accent-moss w-4 h-4">
+                <div>
+                  <p class="text-[13px]">Getar dan dering</p>
+                  <p class="text-[11px] text-ink/45 dark:text-bone/40">Direkomendasikan untuk kondisi darurat</p>
+                </div>
+              </label>
+            </div>
+            <div class="px-4 pb-4 pt-1">
+              <p id="notifSaveState" class="text-[11px] text-ink/40 dark:text-bone/35 font-mono">Tersimpan ke basis data lokal</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------- Tema ---------- */
+const root = document.documentElement;
+function applyTheme(dark){
+  root.classList.toggle('dark', dark);
+  localStorage.setItem('sentra_theme', dark ? 'dark' : 'light');
+  document.getElementById('iconMoon').classList.toggle('hidden', dark);
+  document.getElementById('iconSun').classList.toggle('hidden', !dark);
+}
+applyTheme(localStorage.getItem('sentra_theme') === 'dark');
+document.getElementById('themeToggle').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+document.getElementById('themeToggleMobile').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+
+/* ---------- Sidebar pin (klik untuk kunci lebar, bukan hanya hover) ---------- */
+const sidebar = document.getElementById('sidebar');
+sidebar.addEventListener('dblclick', () => sidebar.classList.toggle('pinned-open'));
+
+/* ---------- Menu mobile ---------- */
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+const mobileOverlayBg = document.getElementById('mobileOverlayBg');
+function openMobileMenu(){ mobileMenuOverlay.classList.remove('hidden'); hamburgerBtn.setAttribute('aria-expanded','true'); }
+function closeMobileMenu(){ mobileMenuOverlay.classList.add('hidden'); hamburgerBtn.setAttribute('aria-expanded','false'); }
+hamburgerBtn.addEventListener('click', openMobileMenu);
+mobileOverlayBg.addEventListener('click', closeMobileMenu);
+
+/* ---------- Jam ---------- */
+function tickClock(){
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('id-ID', { hour12:false });
+}
+tickClock(); setInterval(tickClock, 1000);
+
+/* =====================================================================
+   KAMERA + DETEKSI RANGKA (MediaPipe Pose, berjalan di browser)
+   =====================================================================
+   Catatan arsitektur:
+   - MediaPipe Pose menggambar 33 titik rangka tubuh langsung di canvas ini,
+     berjalan sepenuhnya di browser (WASM), tanpa perlu server.
+   - Untuk bounding box dari model YOLO kustom (mis. deteksi jatuh khusus),
+     frame video dikirim ke server melalui WebSocket ws://<host>/ws/detect,
+     server membalas koordinat kotak (format: [{x,y,w,h,label,conf}, ...]),
+     dan hasilnya digambar di canvas yang sama lewat drawYoloBoxes().
+     Fungsi connectDetectionSocket() di bawah adalah titik integrasinya —
+     tinggal diarahkan ke alamat server YOLO yang sudah berjalan.
+===================================================================== */
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('outputCanvas');
+const ctx = canvas.getContext('2d');
+const emptyState = document.getElementById('emptyState');
+const startCamBtn = document.getElementById('startCamBtn');
+const stopCamBtn = document.getElementById('stopCamBtn');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const resLabel = document.getElementById('resLabel');
+const fpsLabel = document.getElementById('fpsLabel');
+const detectBadge = document.getElementById('detectBadge');
+const poseCountEl = document.getElementById('poseCount');
+
+let stream = null;
+let pose = null;
+let cameraLoop = null;
+let poseEnabled = true;
+let currentFilter = 'normal';
+let lastFrameTime = performance.now();
+let fpsSmoothed = 0;
+let yoloSocket = null;
+let latestYoloBoxes = [];
+
+function setStatus(active){
+  statusDot.className = 'w-2 h-2 rounded-full ' + (active ? 'bg-moss-bright status-live' : 'bg-ink/20 dark:bg-bone/20');
+  statusText.textContent = active ? 'Kamera aktif — memantau' : 'Kamera tidak aktif';
+}
+
+function applyCanvasFilter(){
+  if(currentFilter === 'invert') ctx.filter = 'invert(1)';
+  else if(currentFilter === 'grayscale') ctx.filter = 'grayscale(1)';
+  else ctx.filter = 'none';
+}
+
+// Skeleton koneksi standar MediaPipe Pose (pasangan titik yang dihubungkan garis)
+const POSE_CONNECTIONS = [
+  [11,12],[11,13],[13,15],[12,14],[14,16],
+  [11,23],[12,24],[23,24],
+  [23,25],[25,27],[27,29],[27,31],
+  [24,26],[26,28],[28,30],[28,32],
+  [15,17],[15,19],[15,21],[16,18],[16,20],[16,22]
+];
+
+function drawPoseSkeleton(landmarks, w, h){
+  ctx.save();
+  ctx.filter = 'none';
+  ctx.strokeStyle = '#5C7052';
+  ctx.lineWidth = 2.5;
+  POSE_CONNECTIONS.forEach(([a,b]) => {
+    const p1 = landmarks[a], p2 = landmarks[b];
+    if(!p1 || !p2) return;
+    ctx.beginPath();
+    ctx.moveTo(p1.x * w, p1.y * h);
+    ctx.lineTo(p2.x * w, p2.y * h);
+    ctx.stroke();
+  });
+  landmarks.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x * w, p.y * h, 3.2, 0, Math.PI*2);
+    ctx.fillStyle = '#D8CDA8';
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawYoloBoxes(boxes, w, h){
+  ctx.save();
+  ctx.filter = 'none';
+  boxes.forEach(b => {
+    ctx.strokeStyle = '#9C4A2E';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(b.x * w, b.y * h, b.w * w, b.h * h);
+    const label = `${b.label} ${(b.conf*100).toFixed(0)}%`;
+    ctx.font = '600 12px "IBM Plex Mono", monospace';
+    const tw = ctx.measureText(label).width + 10;
+    ctx.fillStyle = '#9C4A2E';
+    ctx.fillRect(b.x * w, b.y * h - 18, tw, 18);
+    ctx.fillStyle = '#F5F0E4';
+    ctx.fillText(label, b.x * w + 5, b.y * h - 5);
+  });
+  ctx.restore();
+}
+
+function onPoseResults(results){
+  if(!canvas.width) return;
+  const w = canvas.width, h = canvas.height;
+  ctx.save();
+  applyCanvasFilter();
+  ctx.drawImage(results.image, 0, 0, w, h);
+  ctx.restore();
+
+  let pointCount = 0;
+  if(poseEnabled && results.poseLandmarks){
+    drawPoseSkeleton(results.poseLandmarks, w, h);
+    pointCount = results.poseLandmarks.length;
+  }
+  if(latestYoloBoxes.length){
+    drawYoloBoxes(latestYoloBoxes, w, h);
+  }
+  poseCountEl.textContent = pointCount;
+
+  const now = performance.now();
+  const instFps = 1000 / (now - lastFrameTime);
+  fpsSmoothed = fpsSmoothed ? fpsSmoothed * 0.9 + instFps * 0.1 : instFps;
+  lastFrameTime = now;
+  fpsLabel.textContent = `${Math.round(fpsSmoothed)} fps`;
+}
+
+// Titik integrasi YOLO server-side (opsional, aktif bila server tersedia)
+function connectDetectionSocket(){
+  try {
+    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/detect';
+    yoloSocket = new WebSocket(url);
+    yoloSocket.onmessage = (ev) => {
+      try { latestYoloBoxes = JSON.parse(ev.data); } catch(e) { /* abaikan payload tidak valid */ }
+    };
+    yoloSocket.onerror = () => { yoloSocket = null; };
+    yoloSocket.onclose = () => { yoloSocket = null; latestYoloBoxes = []; };
+  } catch(e) { yoloSocket = null; }
+}
+
+async function startCamera(){
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+  } catch(e) {
+    statusText.textContent = 'Izin kamera ditolak atau tidak tersedia';
+    return;
+  }
+  video.srcObject = stream;
+  await video.play();
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  resLabel.textContent = `${video.videoWidth} × ${video.videoHeight}`;
+
+  emptyState.classList.add('hidden');
+  detectBadge.classList.remove('hidden');
+  setStatus(true);
+  startCamBtn.disabled = true;
+  stopCamBtn.disabled = false;
+
+  pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5
+  });
+  pose.onResults(onPoseResults);
+
+  cameraLoop = new Camera(video, {
+    onFrame: async () => { await pose.send({ image: video }); },
+    width: video.videoWidth,
+    height: video.videoHeight
+  });
+  cameraLoop.start();
+
+  connectDetectionSocket();
+}
+
+function stopCamera(){
+  if(cameraLoop) cameraLoop.stop();
+  if(pose) pose.close();
+  if(yoloSocket) yoloSocket.close();
+  if(stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; pose = null; cameraLoop = null; latestYoloBoxes = [];
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  emptyState.classList.remove('hidden');
+  detectBadge.classList.add('hidden');
+  setStatus(false);
+  startCamBtn.disabled = false;
+  stopCamBtn.disabled = true;
+  resLabel.textContent = '— × —';
+  fpsLabel.textContent = '0 fps';
+}
+
+startCamBtn.addEventListener('click', startCamera);
+stopCamBtn.addEventListener('click', stopCamera);
+
+/* ---------- Filter tampilan ---------- */
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('is-active','border-moss','dark:border-moss-bright'));
+    btn.classList.add('is-active');
+    currentFilter = btn.dataset.filter;
+    localStorage.setItem('sentra_filter', currentFilter);
+  });
+});
+document.querySelectorAll('.filter-btn').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('ring-2','ring-moss'));
+    b.classList.add('ring-2','ring-moss');
+  });
+});
+(function restoreFilter(){
+  const saved = localStorage.getItem('sentra_filter');
+  if(saved){
+    currentFilter = saved;
+    const btn = document.querySelector(`.filter-btn[data-filter="${saved}"]`);
+    if(btn){ document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('ring-2','ring-moss')); btn.classList.add('ring-2','ring-moss'); }
+  }
+})();
+
+/* ---------- Toggle bone/pose ---------- */
+const poseToggle = document.getElementById('poseToggle');
+const poseKnob = document.getElementById('poseKnob');
+const poseToggleState = document.getElementById('poseToggleState');
+poseToggle.addEventListener('click', () => {
+  poseEnabled = !poseEnabled;
+  poseToggle.setAttribute('aria-checked', String(poseEnabled));
+  poseToggleState.textContent = poseEnabled ? 'Aktif' : 'Nonaktif';
+  poseKnob.className = 'h-6 w-[calc(50%-4px)] transition-all duration-150 ' + (poseEnabled ? 'ml-auto bg-moss-bright' : 'ml-0 bg-ink/25 dark:bg-bone/25');
+});
+
+/* ---------- Notifikasi: simpan pilihan ke localStorage
+   (placeholder representasi lapisan penyimpanan lokal untuk demo statis;
+    pada implementasi penuh nilai ini ditulis ke tabel `settings` di SQLite
+    melalui endpoint backend, sesuai skema yang dipakai halaman Pengaturan) ---------- */
+const notifRadios = document.querySelectorAll('input[name="notifMode"]');
+const notifSaveState = document.getElementById('notifSaveState');
+const savedNotif = localStorage.getItem('sentra_notif_mode');
+if(savedNotif){
+  const r = document.querySelector(`input[name="notifMode"][value="${savedNotif}"]`);
+  if(r) r.checked = true;
+}
+notifRadios.forEach(r => {
+  r.addEventListener('change', () => {
+    localStorage.setItem('sentra_notif_mode', r.value);
+    notifSaveState.textContent = 'Tersimpan';
+    setTimeout(() => notifSaveState.textContent = 'Tersimpan ke basis data lokal', 1500);
+  });
+});
+</script>
+
+</body>
+</html>
