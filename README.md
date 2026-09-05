@@ -1,72 +1,63 @@
-FallCare-Sentinel
-FallCare-Sentinel adalah sistem dasbor pengawasan cerdas berbasis web yang dirancang untuk memantau dan mendeteksi insiden jatuh secara real-time. Sistem ini menggabungkan pemrosesan postur tubuh di sisi peramban (client-side) dan inferensi model kecerdasan buatan di sisi server (backend) untuk memberikan peringatan darurat yang cepat dan akurat.
+# FallCare-Sentinel
 
-Fitur Utama
-Pemantauan Kamera Real-time: Menampilkan aliran video langsung dari antarmuka web dengan overlay rangka tubuh (skeleton) yang diproses langsung di peramban, bersanding dengan kotak pembatas (bounding box) deteksi jatuh dari server.
+> Sistem dasbor pengawasan cerdas berbasis web untuk memantau dan mendeteksi insiden jatuh secara real-time melalui peramban.
+**Repositori Resmi:** [https://github.com/zheinfajar69-web/FallCare-Sentinel](https://github.com/zheinfajar69-web/FallCare-Sentinel)
+---
+## Ringkasan Proyek
 
-Mode Tampilan Visual: Dilengkapi dengan filter visual (Normal, Inversi Warna, dan Hitam Putih) untuk membantu pemantauan dalam berbagai kondisi pencahayaan, tanpa mengganggu proses deteksi AI.
+FallCare-Sentinel dirancang untuk mengintegrasikan pemrosesan visual di sisi klien dan inferensi kecerdasan buatan di sisi server. Sistem ini tidak hanya memantau aliran video, tetapi juga menyediakan dasbor analitik performa server dan manajemen notifikasi darurat yang terpusat.
 
-Pemantauan Performa Sistem (Live): Menyediakan grafik real-time untuk penggunaan CPU, alokasi RAM server, latensi inferensi model (YOLO), dan waktu aktif (uptime) server menggunakan Chart.js dan WebSocket.
+## Fitur Utama
+| Modul | Fungsi & Spesifikasi |
+|---|---|
+| **Pemantauan Kamera** | Menampilkan video langsung dengan overlay rangka tubuh (*MediaPipe*) dan kotak pembatas (*YOLO Bounding Box*) tanpa jeda. |
+| **Filter Visibilitas** | Dilengkapi filter Normal, Inversi Warna, dan Hitam Putih untuk adaptasi lingkungan tanpa merusak akurasi deteksi *backend*. |
+| **Dasbor Performa** | Visualisasi metrik *real-time* 30 detik terakhir untuk CPU, RAM, latensi inferensi, dan *uptime* menggunakan grafik dinamis. |
+| **Notifikasi Pushover** | Mendukung hingga 5 target perangkat. Mengirimkan sinyal darurat berupa getaran dan dering saat target terdeteksi jatuh. |
+| **Antarmuka Modern** | Dibangun dengan prinsip *Semantic HTML* dan *Tailwind CSS*. Responsif untuk semua perangkat dan mendukung *Dark Mode*. |
+---
 
-Manajemen Notifikasi Darurat (Pushover): Mendukung hingga 5 integrasi perangkat menggunakan Pushover API. Sistem akan mengirimkan notifikasi instan (getar/dering) ke perangkat yang terdaftar apabila insiden jatuh terdeteksi. Pengaturan ini dikelola dan disimpan dengan aman di basis data lokal.
+## Arsitektur & Teknologi
+Proyek ini dipisahkan menjadi dua lapisan utama untuk memastikan beban komputasi terdistribusi dengan baik:
+### Lapisan Klien (Frontend)
+*   **Struktur & Desain:** HTML5, Tailwind CSS
+*   **Logika Interaktif:** Vanilla JavaScript
+*   **Pemrosesan Rangka Visual:** MediaPipe Pose (*WebAssembly*)
+*   **Visualisasi Data:** Chart.js
+### Lapisan Server (Backend)
+*   **Engine Utama:** Python
+*   **Deteksi Objek:** Model YOLO
+*   **Lalu Lintas Data:** WebSocket Server (Komunikasi dua arah latensi rendah)
+*   **Basis Data:** SQLite (Penyimpanan konfigurasi sistem)
+---
 
-Antarmuka Responsif & Mode Gelap: Desain antarmuka yang bersih, semantik, dan responsif untuk penggunaan di desktop maupun perangkat seluler (mobile), lengkap dengan fitur peralihan Mode Gelap (Dark Mode).
+## Peta Direktori Antarmuka
+```text
+/frontend
+├── camera.html       # Kanvas utama pemantauan dan kontrol filter video
+├── performance.html  # Dasbor pemantauan kesehatan server (CPU/RAM/Latensi)
+├── settings.html     # Manajemen kunci API Pushover dan perangkat notifikasi
+└── login.html        # Portal autentikasi untuk mengamankan dasbor
 
-Arsitektur Teknologi
-Sisi Klien (Frontend):
+Panduan Instalasi dan Penggunaan
+1. Persiapan Sistem
+Pastikan mesin Anda telah dilengkapi dengan Python 3.8+ dan Anda menggunakan peramban web modern yang mendukung WebRTC serta protokol WebSocket.
 
-HTML5 & Vanilla JavaScript
-
-Tailwind CSS (via CDN)
-
-MediaPipe Pose (Pemetaan rangka tubuh di peramban)
-
-Chart.js (Visualisasi metrik performa)
-
-WebSocket API (Penerimaan data deteksi dan performa secara real-time)
-
-Sisi Server (Backend):
-
-Python (Engine utama pengolahan data)
-
-Model YOLO (Deteksi objek/jatuh)
-
-WebSocket Server (Komunikasi dua arah dengan klien)
-
-SQLite (Penyimpanan konfigurasi API Pushover dan pengaturan sistem)
-
-Struktur File Frontend
-camera.html - Antarmuka utama untuk pemantauan video, filter visual, dan rendering deteksi (MediaPipe & YOLO).
-
-performance.html - Dasbor analitik untuk memantau kesehatan server, penggunaan CPU, RAM, dan latensi inferensi secara real-time.
-
-settings.html - Halaman konfigurasi untuk mengatur dan mengelola User Key Pushover API sebagai target notifikasi darurat.
-
-login.html - Halaman autentikasi untuk mengamankan akses ke dasbor pengawas.
-
-Prasyarat
-Sebelum menjalankan FallCare-Sentinel, pastikan sistem Anda telah memiliki:
-
-Python versi 3.8 atau lebih baru.
-
-Lingkungan virtual (opsional namun direkomendasikan) untuk dependensi backend.
-
-Peramban web modern (Chrome, Firefox, Edge, atau Safari) yang mendukung WebRTC (MediaDevices API) dan WebSocket.
-
-Instalasi dan Penggunaan
-Kloning repositori ini ke dalam mesin lokal atau server Anda:
+2. Unduh Repositori
+Lakukan kloning repositori ini ke dalam direktori lokal Anda:
 
 Bash
-git clone https://github.com/username/FallCare-Sentinel.git
+git clone [https://github.com/zheinfajar69-web/FallCare-Sentinel.git](https://github.com/zheinfajar69-web/FallCare-Sentinel.git)
 cd FallCare-Sentinel
-Konfigurasi Backend:
-Instal dependensi Python yang dibutuhkan (sesuaikan dengan requirements.txt dari sisi backend) dan jalankan server WebSocket/Deteksi.
+3. Konfigurasi Backend
+Disarankan untuk menggunakan virtual environment. Instal seluruh dependensi yang diperlukan, kemudian jalankan server utama:
 
 Bash
 pip install -r requirements.txt
 python main.py
-Akses Antarmuka:
-Buka file login.html atau akses localhost sesuai dengan port server yang Anda tetapkan melalui peramban web. Pastikan peramban memberikan izin akses kamera (jika menggunakan webcam lokal) untuk menjalankan fungsi MediaPipe Pose.
+4. Akses Dasbor
+Buka berkas login.html melalui peramban web, atau gunakan ekstensi Live Server pada code editor Anda agar fungsi pengambilan jaringan berjalan optimal.
 
-Konfigurasi Notifikasi:
-Masuk ke menu Pengaturan, tambahkan Nama Pemilik dan User Key dari Pushover, lalu simpan. Sistem akan mulai merutekan peringatan ke perangkat tersebut.
+Izinkan akses kamera pada peramban agar sistem pemetaan rangka dari MediaPipe dapat beroperasi.
+
+Masuk ke halaman Pengaturan untuk mendaftarkan nama pemilik dan User Key Pushover agar notifikasi darurat dapat dirutekan dengan benar.
