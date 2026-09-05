@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#191A16"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- Header Identitas ByteCraft / Sentinel -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginBottom="28dp">
+
+            <!-- Kotak Logo Rust -->
+            <FrameLayout
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="#D8CDA8"
+                android:layout_marginEnd="12dp">
+                <View
+                    android:layout_width="8dp"
+                    android:layout_height="8dp"
+                    android:layout_gravity="center"
+                    android:background="#9C4A2E" />
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="ByteCraft Sentinel"
+                    android:textColor="#D8CDA8"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Simpul Darurat Android Lokal"
+                    android:textColor="#7A7460"
+                    android:textSize="12sp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Kartu 1: Status Koneksi Telemetri -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1F211C"
+            android:padding="18dp"
+            android:layout_marginBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="STATUS TELEMETRI WEBSOCKET"
+                android:textColor="#7A7460"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"
+                android:layout_marginBottom="10dp" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <!-- Indikator Dot (Default Merah Rust) -->
+                <View
+                    android:id="@+id/viewStatusDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="#9C4A2E"
+                    android:layout_marginEnd="10dp" />
+
+                <TextView
+                    android:id="@+id/tvConnectionStatus"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Terputus dari Server"
+                    android:textColor="#D8CDA8"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Kartu 2: Konfigurasi IP Host Laptop -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#1F211C"
+            android:padding="18dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PENGATURAN HOST LOKAL"
+                android:textColor="#7A7460"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Alamat IP Laptop / Pengembang"
+                android:textColor="#D8CDA8"
+                android:textSize="13sp"
+                android:layout_marginBottom="6dp" />
+
+            <EditText
+                android:id="@+id/etServerIp"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="#191A16"
+                android:paddingHorizontal="14dp"
+                android:hint="Cth: 192.168.1.50"
+                android:textColorHint="#494B40"
+                android:textColor="#D8CDA8"
+                android:inputType="textUri"
+                android:textSize="14sp"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Tombol Warna Moss (#3F4B3B) -->
+            <Button
+                android:id="@+id/btnSaveIp"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="Simpan &amp; Hubungkan Ulang"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#3F4B3B"
+                android:textAllCaps="false"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Footer / Panduan -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Perangkat ini bertindak sebagai penerima sinyal darurat berkecepatan tinggi (&lt;100ms). Layanan tetap siaga saat layar mati."
+            android:textColor="#7A7460"
+            android:textSize="12sp"
+            android:layout_marginTop="24dp"
+            android:lineSpacingExtra="3dp" />
+
+    </LinearLayout>
+</ScrollView>
