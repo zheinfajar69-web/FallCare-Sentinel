@@ -31,22 +31,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- MediaPipe Pose: dipakai untuk menggambar skeleton (bone) langsung di browser.
-     Model deteksi jatuh utama (YOLO) tetap berjalan di sisi server/Python;
-     hasil bounding box dari YOLO dikirim balik lewat WebSocket (lihat fungsi connectDetectionSocket)
-     dan digambar di canvas yang sama. Skeleton MediaPipe berjalan paralel sebagai
-     visual bantu real-time ketika belum ada koneksi ke server deteksi. -->
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
-
 <style>
   html { color-scheme: light; }
   html.dark { color-scheme: dark; }
 
   ::selection { background: #9C4A2E; color: #F5F0E4; }
 
-  /* Sidebar: collapsed = ikon saja, hover = melebar. Ini state, bukan animasi dekoratif. */
   .sidebar-rail { width: 4.25rem; transition: width 160ms ease; }
   .sidebar-rail:hover, .sidebar-rail.pinned-open { width: 15.5rem; }
   .sidebar-rail .label-text {
@@ -96,7 +86,7 @@
         <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
           <div class="w-2 h-2 bg-rust"></div>
         </div>
-        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
       </div>
 
       <nav class="mt-3 flex flex-col gap-1 px-3">
@@ -133,7 +123,7 @@
     <button id="hamburgerBtn" class="p-2 -ml-2 focus-ring" aria-label="Buka menu" aria-expanded="false">
       <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
-    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">SENTRA-01 / KAMERA</span>
+    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">ByteCraft / KAMERA</span>
     <span class="w-2 h-2 bg-moss-bright rounded-full status-live"></span>
   </header>
 
@@ -146,7 +136,7 @@
           <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
             <div class="w-2 h-2 bg-rust"></div>
           </div>
-          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
         </div>
         <a href="camera.html" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
@@ -181,7 +171,7 @@
       <div class="flex items-baseline justify-between mb-6">
         <div>
           <h1 class="text-[22px] md:text-[26px] leading-tight">Kamera pengawas</h1>
-          <p class="text-[13px] text-ink/55 dark:text-bone/45 mt-0.5">Deteksi rangka tubuh berjalan langsung di peramban ini, sejajar dengan deteksi utama di server.</p>
+          <p class="text-[13px] text-ink/55 dark:text-bone/45 mt-0.5">Video dan deteksi rangka diproses di server (YOLO), lalu ditampilkan langsung di sini.</p>
         </div>
         <div class="hidden lg:flex items-center gap-2 font-mono text-[12px] text-ink/50 dark:text-bone/40">
           <span id="clock">--:--:--</span>
@@ -204,25 +194,29 @@
           </div>
 
           <div class="relative bg-slate-900 dark:bg-black flex items-center justify-center min-h-[280px] md:min-h-[420px]">
-            <video id="video" class="hidden" autoplay playsinline muted></video>
-            <canvas id="outputCanvas" class="max-w-full max-h-[70vh] w-auto h-auto"></canvas>
+            <!-- Tag img menampilkan stream JPEG base64 dari server (sudah berisi bounding box YOLO) -->
+            <img id="videoStream" class="max-w-full max-h-[70vh] w-auto h-auto hidden" alt="Live Stream YOLO" />
 
-            <!-- state kosong sebelum kamera dinyalakan -->
             <div id="emptyState" class="absolute inset-0 flex flex-col items-center justify-center gap-4 text-bone/70 px-6 text-center">
               <svg class="w-11 h-11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
               <div>
                 <p class="text-[14px]">Kamera belum diaktifkan</p>
-                <p class="text-[12px] text-bone/45 mt-1 max-w-[300px]">Nyalakan untuk mulai memantau dan menggambar rangka tubuh secara langsung.</p>
+                <p class="text-[12px] text-bone/45 mt-1 max-w-[300px]">Nyalakan untuk mulai memantau dan menerima video dari server deteksi.</p>
               </div>
               <button id="startCamBtn" class="px-4 py-2 bg-bone text-ink text-[13px] hover:bg-white transition-colors focus-ring">
                 Nyalakan kamera
               </button>
             </div>
 
-            <!-- badge deteksi -->
+            <div id="cameraErrorState" class="hidden absolute inset-0 flex flex-col items-center justify-center gap-3 text-bone/80 px-6 text-center bg-slate-900/90">
+              <svg class="w-9 h-9 text-rust" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+              <p id="cameraErrorText" class="text-[13px] max-w-[320px]">Kamera gagal dibuka. Periksa perangkat kamera pada server.</p>
+              <button id="retryCamBtn" class="px-3.5 py-1.5 border border-bone/30 text-[12px] hover:bg-bone/10 focus-ring">Coba lagi</button>
+            </div>
+
             <div id="detectBadge" class="hidden absolute top-3 left-3 flex items-center gap-2 bg-slate-900/80 backdrop-blur px-2.5 py-1.5 border border-bone/10">
               <span class="w-1.5 h-1.5 bg-moss-bright rounded-full status-live"></span>
-              <span class="font-mono text-[11px] text-bone/80">rangka: <span id="poseCount">0</span> titik terdeteksi</span>
+              <span class="font-mono text-[11px] text-bone/80">Server YOLO aktif</span>
             </div>
           </div>
 
@@ -241,7 +235,7 @@
           <div class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
             <div class="px-4 py-3 border-b border-ink/10 dark:border-bone/10">
               <h2 class="text-[14px]">Filter tampilan</h2>
-              <p class="text-[12px] text-ink/45 dark:text-bone/40 mt-0.5">Hanya mengubah tampilan, deteksi tidak terpengaruh.</p>
+              <p class="text-[12px] text-ink/45 dark:text-bone/40 mt-0.5">Hanya mengubah tampilan, deteksi di server tidak terpengaruh.</p>
             </div>
             <div class="p-3 grid grid-cols-3 gap-2">
               <button data-filter="normal" class="filter-btn is-active flex flex-col items-center gap-2 py-3 border border-ink/15 dark:border-bone/15 text-[12px] focus-ring">
@@ -255,15 +249,6 @@
               <button data-filter="grayscale" class="filter-btn flex flex-col items-center gap-2 py-3 border border-ink/15 dark:border-bone/15 text-[12px] focus-ring">
                 <span class="w-8 h-8 rounded-full bg-gradient-to-br from-white to-black"></span>
                 Hitam putih
-              </button>
-            </div>
-            <div class="px-4 pb-4">
-              <label class="flex items-center justify-between text-[12px] text-ink/55 dark:text-bone/45 mb-1.5">
-                <span>Gambar rangka (bone)</span>
-                <span id="poseToggleState" class="font-mono">Aktif</span>
-              </label>
-              <button id="poseToggle" class="w-full h-8 relative border border-ink/20 dark:border-bone/20 flex items-center px-1 focus-ring" role="switch" aria-checked="true">
-                <span id="poseKnob" class="h-6 w-[calc(50%-4px)] bg-moss-bright transition-all duration-150 ml-auto"></span>
               </button>
             </div>
           </div>
@@ -298,7 +283,7 @@
               </label>
             </div>
             <div class="px-4 pb-4 pt-1">
-              <p id="notifSaveState" class="text-[11px] text-ink/40 dark:text-bone/35 font-mono">Tersimpan ke basis data lokal</p>
+              <p id="notifSaveState" class="text-[11px] text-ink/40 dark:text-bone/35 font-mono">Memuat pengaturan…</p>
             </div>
           </div>
 
@@ -322,7 +307,7 @@ applyTheme(localStorage.getItem('sentra_theme') === 'dark');
 document.getElementById('themeToggle').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
 document.getElementById('themeToggleMobile').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
 
-/* ---------- Sidebar pin (klik untuk kunci lebar, bukan hanya hover) ---------- */
+/* ---------- Sidebar pin ---------- */
 const sidebar = document.getElementById('sidebar');
 sidebar.addEventListener('dblclick', () => sidebar.classList.toggle('pinned-open'));
 
@@ -342,189 +327,133 @@ function tickClock(){
 tickClock(); setInterval(tickClock, 1000);
 
 /* =====================================================================
-   KAMERA + DETEKSI RANGKA (MediaPipe Pose, berjalan di browser)
-   =====================================================================
-   Catatan arsitektur:
-   - MediaPipe Pose menggambar 33 titik rangka tubuh langsung di canvas ini,
-     berjalan sepenuhnya di browser (WASM), tanpa perlu server.
-   - Untuk bounding box dari model YOLO kustom (mis. deteksi jatuh khusus),
-     frame video dikirim ke server melalui WebSocket ws://<host>/ws/detect,
-     server membalas koordinat kotak (format: [{x,y,w,h,label,conf}, ...]),
-     dan hasilnya digambar di canvas yang sama lewat drawYoloBoxes().
-     Fungsi connectDetectionSocket() di bawah adalah titik integrasinya —
-     tinggal diarahkan ke alamat server YOLO yang sudah berjalan.
-===================================================================== */
+   STREAMING VIDEO DARI BACKEND PYTHON (YOLO) — via /ws/video
+   Video + bounding box sudah digambar di server (main.py: process_frame),
+   dikirim sebagai JPEG base64 lewat WebSocket, ditampilkan di <img>.
+   ===================================================================== */
 
-const video = document.getElementById('video');
-const canvas = document.getElementById('outputCanvas');
-const ctx = canvas.getContext('2d');
+const videoStream = document.getElementById('videoStream');
 const emptyState = document.getElementById('emptyState');
+const cameraErrorState = document.getElementById('cameraErrorState');
+const cameraErrorText = document.getElementById('cameraErrorText');
 const startCamBtn = document.getElementById('startCamBtn');
 const stopCamBtn = document.getElementById('stopCamBtn');
+const retryCamBtn = document.getElementById('retryCamBtn');
 const statusDot = document.getElementById('statusDot');
 const statusText = document.getElementById('statusText');
 const resLabel = document.getElementById('resLabel');
 const fpsLabel = document.getElementById('fpsLabel');
 const detectBadge = document.getElementById('detectBadge');
-const poseCountEl = document.getElementById('poseCount');
 
-let stream = null;
-let pose = null;
-let cameraLoop = null;
-let poseEnabled = true;
-let currentFilter = 'normal';
+let wsVideo = null;
 let lastFrameTime = performance.now();
-let fpsSmoothed = 0;
-let yoloSocket = null;
-let latestYoloBoxes = [];
+let frameCount = 0;
+let currentFilter = 'normal';
+let poseEnabled = true;
 
 function setStatus(active){
   statusDot.className = 'w-2 h-2 rounded-full ' + (active ? 'bg-moss-bright status-live' : 'bg-ink/20 dark:bg-bone/20');
-  statusText.textContent = active ? 'Kamera aktif — memantau' : 'Kamera tidak aktif';
+  statusText.textContent = active ? 'Kamera aktif — Server YOLO' : 'Kamera tidak aktif';
 }
 
-function applyCanvasFilter(){
-  if(currentFilter === 'invert') ctx.filter = 'invert(1)';
-  else if(currentFilter === 'grayscale') ctx.filter = 'grayscale(1)';
-  else ctx.filter = 'none';
+function applyFilter(){
+  if(currentFilter === 'invert') videoStream.style.filter = 'invert(1)';
+  else if(currentFilter === 'grayscale') videoStream.style.filter = 'grayscale(1)';
+  else videoStream.style.filter = 'none';
 }
 
-// Skeleton koneksi standar MediaPipe Pose (pasangan titik yang dihubungkan garis)
-const POSE_CONNECTIONS = [
-  [11,12],[11,13],[13,15],[12,14],[14,16],
-  [11,23],[12,24],[23,24],
-  [23,25],[25,27],[27,29],[27,31],
-  [24,26],[26,28],[28,30],[28,32],
-  [15,17],[15,19],[15,21],[16,18],[16,20],[16,22]
-];
-
-function drawPoseSkeleton(landmarks, w, h){
-  ctx.save();
-  ctx.filter = 'none';
-  ctx.strokeStyle = '#5C7052';
-  ctx.lineWidth = 2.5;
-  POSE_CONNECTIONS.forEach(([a,b]) => {
-    const p1 = landmarks[a], p2 = landmarks[b];
-    if(!p1 || !p2) return;
-    ctx.beginPath();
-    ctx.moveTo(p1.x * w, p1.y * h);
-    ctx.lineTo(p2.x * w, p2.y * h);
-    ctx.stroke();
-  });
-  landmarks.forEach(p => {
-    ctx.beginPath();
-    ctx.arc(p.x * w, p.y * h, 3.2, 0, Math.PI*2);
-    ctx.fillStyle = '#D8CDA8';
-    ctx.fill();
-  });
-  ctx.restore();
+function showEmptyState(){
+  emptyState.classList.remove('hidden');
+  cameraErrorState.classList.add('hidden');
+  videoStream.classList.add('hidden');
+  detectBadge.classList.add('hidden');
 }
 
-function drawYoloBoxes(boxes, w, h){
-  ctx.save();
-  ctx.filter = 'none';
-  boxes.forEach(b => {
-    ctx.strokeStyle = '#9C4A2E';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(b.x * w, b.y * h, b.w * w, b.h * h);
-    const label = `${b.label} ${(b.conf*100).toFixed(0)}%`;
-    ctx.font = '600 12px "IBM Plex Mono", monospace';
-    const tw = ctx.measureText(label).width + 10;
-    ctx.fillStyle = '#9C4A2E';
-    ctx.fillRect(b.x * w, b.y * h - 18, tw, 18);
-    ctx.fillStyle = '#F5F0E4';
-    ctx.fillText(label, b.x * w + 5, b.y * h - 5);
-  });
-  ctx.restore();
-}
-
-function onPoseResults(results){
-  if(!canvas.width) return;
-  const w = canvas.width, h = canvas.height;
-  ctx.save();
-  applyCanvasFilter();
-  ctx.drawImage(results.image, 0, 0, w, h);
-  ctx.restore();
-
-  let pointCount = 0;
-  if(poseEnabled && results.poseLandmarks){
-    drawPoseSkeleton(results.poseLandmarks, w, h);
-    pointCount = results.poseLandmarks.length;
-  }
-  if(latestYoloBoxes.length){
-    drawYoloBoxes(latestYoloBoxes, w, h);
-  }
-  poseCountEl.textContent = pointCount;
-
-  const now = performance.now();
-  const instFps = 1000 / (now - lastFrameTime);
-  fpsSmoothed = fpsSmoothed ? fpsSmoothed * 0.9 + instFps * 0.1 : instFps;
-  lastFrameTime = now;
-  fpsLabel.textContent = `${Math.round(fpsSmoothed)} fps`;
-}
-
-// Titik integrasi YOLO server-side (opsional, aktif bila server tersedia)
-function connectDetectionSocket(){
-  try {
-    const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/detect';
-    yoloSocket = new WebSocket(url);
-    yoloSocket.onmessage = (ev) => {
-      try { latestYoloBoxes = JSON.parse(ev.data); } catch(e) { /* abaikan payload tidak valid */ }
-    };
-    yoloSocket.onerror = () => { yoloSocket = null; };
-    yoloSocket.onclose = () => { yoloSocket = null; latestYoloBoxes = []; };
-  } catch(e) { yoloSocket = null; }
+function showErrorState(message){
+  emptyState.classList.add('hidden');
+  cameraErrorState.classList.remove('hidden');
+  videoStream.classList.add('hidden');
+  detectBadge.classList.add('hidden');
+  cameraErrorText.textContent = message || 'Kamera gagal dibuka. Periksa perangkat kamera pada server.';
 }
 
 async function startCamera(){
+  cameraErrorState.classList.add('hidden');
+  startCamBtn.disabled = true;
+  resLabel.textContent = 'Menghubungkan kamera...';
+
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
-  } catch(e) {
-    statusText.textContent = 'Izin kamera ditolak atau tidak tersedia';
+    const res = await fetch('/api/start', { method: 'POST' });
+    if(!res.ok){
+      const errBody = await res.json().catch(() => ({}));
+      showErrorState(errBody.detail || 'Server menolak permintaan menyalakan kamera.');
+      startCamBtn.disabled = false;
+      resLabel.textContent = '— × —';
+      return;
+    }
+  } catch (err) {
+    showErrorState('Tidak dapat menghubungi server backend. Pastikan server berjalan.');
+    startCamBtn.disabled = false;
+    resLabel.textContent = '— × —';
     return;
   }
-  video.srcObject = stream;
-  await video.play();
-
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  resLabel.textContent = `${video.videoWidth} × ${video.videoHeight}`;
 
   emptyState.classList.add('hidden');
-  detectBadge.classList.remove('hidden');
+  cameraErrorState.classList.add('hidden');
+  detectBadge.classList.add('hidden');
   setStatus(true);
-  startCamBtn.disabled = true;
   stopCamBtn.disabled = false;
 
-  pose = new Pose({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}` });
-  pose.setOptions({
-    modelComplexity: 1,
-    smoothLandmarks: true,
-    minDetectionConfidence: 0.5,
-    minTrackingConfidence: 0.5
-  });
-  pose.onResults(onPoseResults);
+  const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/video';
+  wsVideo = new WebSocket(wsUrl);
 
-  cameraLoop = new Camera(video, {
-    onFrame: async () => { await pose.send({ image: video }); },
-    width: video.videoWidth,
-    height: video.videoHeight
-  });
-  cameraLoop.start();
+  wsVideo.onmessage = (event) => {
+    const msg = JSON.parse(event.data);
+    if(msg.type === 'frame'){
+      if(videoStream.classList.contains('hidden')){
+        videoStream.classList.remove('hidden');
+        detectBadge.classList.remove('hidden');
+        resLabel.textContent = 'Server Stream';
+        applyFilter();
+      }
+      videoStream.src = "data:image/jpeg;base64," + msg.data;
 
-  connectDetectionSocket();
+      frameCount++;
+      const now = performance.now();
+      if (now - lastFrameTime >= 1000) {
+        fpsLabel.textContent = `${frameCount} fps`;
+        frameCount = 0;
+        lastFrameTime = now;
+      }
+    }
+  };
+
+  wsVideo.onerror = () => {
+    showErrorState('Koneksi video ke server terputus.');
+    setStatus(false);
+    startCamBtn.disabled = false;
+    stopCamBtn.disabled = true;
+  };
+
+  wsVideo.onclose = () => {
+    if(!emptyState.classList.contains('hidden') === false && !cameraErrorState.classList.contains('hidden') === false){
+      // tidak ada state eksplisit lain untuk ditangani di sini
+    }
+  };
 }
 
-function stopCamera(){
-  if(cameraLoop) cameraLoop.stop();
-  if(pose) pose.close();
-  if(yoloSocket) yoloSocket.close();
-  if(stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; pose = null; cameraLoop = null; latestYoloBoxes = [];
+async function stopCamera(){
+  try {
+    await fetch('/api/stop', { method: 'POST' });
+  } catch (err) { /* server mungkin sudah mati; lanjut bersihkan UI lokal */ }
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  emptyState.classList.remove('hidden');
-  detectBadge.classList.add('hidden');
+  if(wsVideo) {
+    wsVideo.close();
+    wsVideo = null;
+  }
+
+  videoStream.src = "";
+  showEmptyState();
   setStatus(false);
   startCamBtn.disabled = false;
   stopCamBtn.disabled = true;
@@ -534,60 +463,90 @@ function stopCamera(){
 
 startCamBtn.addEventListener('click', startCamera);
 stopCamBtn.addEventListener('click', stopCamera);
+retryCamBtn.addEventListener('click', startCamera);
 
-/* ---------- Filter tampilan ---------- */
-document.querySelectorAll('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('is-active','border-moss','dark:border-moss-bright'));
-    btn.classList.add('is-active');
-    currentFilter = btn.dataset.filter;
-    localStorage.setItem('sentra_filter', currentFilter);
-  });
-});
-document.querySelectorAll('.filter-btn').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('ring-2','ring-moss'));
-    b.classList.add('ring-2','ring-moss');
-  });
-});
-(function restoreFilter(){
-  const saved = localStorage.getItem('sentra_filter');
-  if(saved){
-    currentFilter = saved;
-    const btn = document.querySelector(`.filter-btn[data-filter="${saved}"]`);
-    if(btn){ document.querySelectorAll('.filter-btn').forEach(x=>x.classList.remove('ring-2','ring-moss')); btn.classList.add('ring-2','ring-moss'); }
+/* ---------- Simpan pengaturan ke SQLite via backend (PUT /api/settings) ---------- */
+async function saveSettingToServer(key, value){
+  try {
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [key]: value })
+    });
+    return res.ok;
+  } catch (err) {
+    return false;
   }
-})();
+}
 
-/* ---------- Toggle bone/pose ---------- */
-const poseToggle = document.getElementById('poseToggle');
-const poseKnob = document.getElementById('poseKnob');
-const poseToggleState = document.getElementById('poseToggleState');
-poseToggle.addEventListener('click', () => {
-  poseEnabled = !poseEnabled;
-  poseToggle.setAttribute('aria-checked', String(poseEnabled));
-  poseToggleState.textContent = poseEnabled ? 'Aktif' : 'Nonaktif';
-  poseKnob.className = 'h-6 w-[calc(50%-4px)] transition-all duration-150 ' + (poseEnabled ? 'ml-auto bg-moss-bright' : 'ml-0 bg-ink/25 dark:bg-bone/25');
+/* ---------- Filter tampilan (key: displayFilter) ---------- */
+function setActiveFilterButton(filterName){
+  document.querySelectorAll('.filter-btn').forEach(x => x.classList.remove('is-active','ring-2','ring-moss'));
+  const btn = document.querySelector(`.filter-btn[data-filter="${filterName}"]`);
+  if(btn) btn.classList.add('is-active','ring-2','ring-moss');
+}
+
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    currentFilter = btn.dataset.filter;
+    setActiveFilterButton(currentFilter);
+    applyFilter();
+    await saveSettingToServer('displayFilter', currentFilter);
+  });
 });
 
-/* ---------- Notifikasi: simpan pilihan ke localStorage
-   (placeholder representasi lapisan penyimpanan lokal untuk demo statis;
-    pada implementasi penuh nilai ini ditulis ke tabel `settings` di SQLite
-    melalui endpoint backend, sesuai skema yang dipakai halaman Pengaturan) ---------- */
+/* ---------- Notifikasi darurat (key: notifMode) ---------- */
 const notifRadios = document.querySelectorAll('input[name="notifMode"]');
 const notifSaveState = document.getElementById('notifSaveState');
-const savedNotif = localStorage.getItem('sentra_notif_mode');
-if(savedNotif){
-  const r = document.querySelector(`input[name="notifMode"][value="${savedNotif}"]`);
-  if(r) r.checked = true;
-}
+
+/* Cegah request PUT terputus kalau user langsung menutup/refresh tab
+   sesaat setelah memilih opsi — beforeunload memberi jeda ke browser
+   untuk menunggu, dan sendBeacon (fallback) tetap terkirim walau tab
+   sudah dalam proses ditutup. */
+let pendingSave = false;
+window.addEventListener('beforeunload', (e) => {
+  if(pendingSave){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
 notifRadios.forEach(r => {
-  r.addEventListener('change', () => {
-    localStorage.setItem('sentra_notif_mode', r.value);
-    notifSaveState.textContent = 'Tersimpan';
-    setTimeout(() => notifSaveState.textContent = 'Tersimpan ke basis data lokal', 1500);
+  r.addEventListener('change', async () => {
+    pendingSave = true;
+    notifSaveState.textContent = 'Menyimpan…';
+    const ok = await saveSettingToServer('notifMode', r.value);
+    pendingSave = false;
+    notifSaveState.textContent = ok ? 'Tersimpan' : 'Gagal tersimpan — periksa koneksi ke server';
+    if(ok) setTimeout(() => notifSaveState.textContent = 'Tersimpan ke basis data lokal', 1500);
   });
 });
+
+/* ---------- Muat semua pengaturan tampilan dari server saat halaman dibuka ---------- */
+async function loadSettingsFromServer(){
+  try {
+    const res = await fetch('/api/settings');
+    if(!res.ok) throw new Error('Gagal memuat pengaturan');
+    const settings = await res.json();
+
+    if(settings.displayFilter){
+      currentFilter = settings.displayFilter;
+      setActiveFilterButton(currentFilter);
+    }
+    if(typeof settings.poseEnabled !== 'undefined'){
+      poseEnabled = settings.poseEnabled === 'true' || settings.poseEnabled === true;
+      renderPoseToggle(poseEnabled);
+    }
+    if(settings.notifMode){
+      const r = document.querySelector(`input[name="notifMode"][value="${settings.notifMode}"]`);
+      if(r) r.checked = true;
+    }
+    notifSaveState.textContent = 'Tersimpan ke basis data lokal';
+  } catch (err) {
+    notifSaveState.textContent = 'Gagal memuat dari server — periksa koneksi backend';
+  }
+}
+loadSettingsFromServer();
 </script>
 
 </body>
