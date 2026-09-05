@@ -2,17 +2,26 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Requ
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 import asyncio
 import json
 import cv2
 import base64
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 import threading
 import time
+import os
+import psutil
 
 # Import CV Engine & Database (Gunakan relative import titik agar terbaca dalam folder BE)
 from .main import FallDetectionEngine
-from .database import get_all_settings, update_setting
+from .database import (
+    get_all_settings,
+    update_setting,
+    get_all_pushover_devices,
+    replace_all_pushover_devices,
+    verify_user,
+)
 
 app = FastAPI(
     title="Fall Detection System API",
@@ -36,6 +45,35 @@ cv_thread: Optional[threading.Thread] = None
 # WebSocket connections tracking
 active_websockets: Dict[int, WebSocket] = {}
 
+# Proses saat ini, dipakai untuk baca penggunaan RAM/CPU proses Python
+# (bukan CPU/RAM seluruh mesin, tapi punya server FastAPI+CV Engine ini saja)
+_process = psutil.Process(os.getpid())
+# Panggilan pertama cpu_percent() selalu 0.0, jadi "dipanaskan" sekali di sini
+_process.cpu_percent(interval=None)
+
+# Dicatat saat modul ini di-load (mendekati saat server mulai jalan),
+# dipakai untuk hitung uptime_sec di /ws/performance
+_server_start_time = time.time()
+
+# Batas jumlah perangkat Pushover, sama seperti batas yang sudah
+# ditegakkan di sisi UI settings.html (MAX_DEVICES = 5 di JS-nya).
+MAX_PUSHOVER_DEVICES = 5
+
+# ==================== SKEMA REQUEST ====================
+
+class PushoverDeviceIn(BaseModel):
+    """Satu baris device dari form settings.html."""
+    name: str = Field(min_length=1)
+    key: str = Field(min_length=1)
+
+class PushoverSettingsIn(BaseModel):
+    pushover_devices: List[PushoverDeviceIn]
+
+class LoginIn(BaseModel):
+    """Payload dari login.html: { username, password }"""
+    username: str
+    password: str
+
 # ==================== ROUTES ====================
 
 @app.on_event("startup")
@@ -44,11 +82,6 @@ async def startup_event():
     PENTING: CV engine TIDAK auto-start di sini lagi.
     Kamera fisik hanya dinyalakan saat user menekan tombol "Nyalakan kamera"
     di Web UI, yang memanggil POST /api/start.
-
-    Ini juga yang membuat kamera "tidak mau masuk" sebelumnya: engine sempat
-    auto-start di thread terpisah tanpa ada jalur pengiriman frame ke browser
-    (endpoint /ws/video belum ada), jadi video tidak pernah sampai ke Web UI
-    walau kamera fisik sudah menyala.
     """
     saved_status = get_all_settings().get("cameraStatus", "off")
     print(f"✓ Server siap. Status kamera tersimpan: {saved_status} (tidak auto-start; tunggu perintah dari UI)")
@@ -81,6 +114,21 @@ async def settings_page():
     with open("FE/settings.html", "r") as f:
         return HTMLResponse(content=f.read())
 
+@app.get("/login")
+async def login_page():
+    """Serve halaman login"""
+    with open("FE/login.html", "r") as f:
+        return HTMLResponse(content=f.read())
+
+# ==================== AUTH ====================
+
+@app.post("/api/auth/login")
+async def login(payload: LoginIn):
+    """Cek username+password terhadap tabel users di SQLite."""
+    if verify_user(payload.username, payload.password):
+        return {"message": "Login berhasil"}
+    raise HTTPException(status_code=401, detail="Username atau password salah")
+
 # ==================== API ENDPOINTS ====================
 
 @app.get("/api/status")
@@ -95,16 +143,9 @@ async def get_status():
 
 @app.post("/api/start")
 async def start_detection():
-    """
-    Nyalakan kamera fisik + CV engine.
-    Ini endpoint yang sebelumnya HILANG — camera.html sudah memanggil
-    fetch('/api/start', {method:'POST'}) tapi server belum punya route-nya,
-    sehingga request selalu 404 dan cv_engine.start() tidak pernah terpanggil.
-    """
+    """Nyalakan kamera fisik + CV engine."""
     if not cv_engine.is_running:
         cv_engine.start()
-        # Beri jeda singkat supaya thread kamera sempat membuka device
-        # sebelum kita balas ke frontend (mencegah race condition ringan).
         for _ in range(20):  # maksimal ~2 detik menunggu
             if cv_engine.is_running:
                 break
@@ -113,7 +154,6 @@ async def start_detection():
         update_setting('cameraStatus', 'on')
 
         if not cv_engine.is_running:
-            # Kamera gagal dibuka (mis. device index salah / dipakai app lain)
             raise HTTPException(
                 status_code=500,
                 detail="Kamera gagal dibuka. Periksa index kamera di main.py atau pastikan tidak dipakai aplikasi lain."
@@ -126,7 +166,7 @@ async def stop_detection():
     """Stop fall detection"""
     if cv_engine.is_running:
         cv_engine.stop()
-        update_setting('cameraStatus', 'off')  # Sinkronisasi state ke database
+        update_setting('cameraStatus', 'off')
         return {"message": "Detection stopped", "status": "stopped"}
     return {"message": "Already stopped", "status": "stopped"}
 
@@ -139,9 +179,8 @@ async def get_settings():
 async def update_settings(settings: dict):
     """Update configuration dan simpan ke Database"""
     for key, value in settings.items():
-        update_setting(key, value)  # Simpan ke DB
+        update_setting(key, value)
 
-        # Reaksi langsung (Real-time trigger) jika setting tertentu diubah
         if key == "fall_threshold":
             cv_engine.fall_time_threshold = float(value)
 
@@ -161,22 +200,53 @@ async def reset_tracking(track_id: int):
         return {"message": f"Track {track_id} reset"}
     raise HTTPException(status_code=404, detail="Track ID not found")
 
+# ==================== PUSHOVER DEVICE SETTINGS ====================
+
+@app.get("/api/settings/pushover")
+async def get_pushover_settings():
+    """
+    Kembalikan semua perangkat Pushover tersimpan, dengan bentuk yang
+    langsung cocok dipakai settings.html (field 'key', bukan 'api_key').
+    """
+    devices = get_all_pushover_devices()
+    return {
+        "pushover_devices": [
+            {"name": d["name"], "key": d["api_key"]} for d in devices
+        ]
+    }
+
+@app.post("/api/settings/pushover")
+async def update_pushover_settings(payload: PushoverSettingsIn):
+    """
+    Ganti seluruh daftar perangkat Pushover sekaligus.
+    Validasi batas 5 perangkat dilakukan di sini juga (bukan hanya di JS).
+    """
+    if len(payload.pushover_devices) > MAX_PUSHOVER_DEVICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maksimal {MAX_PUSHOVER_DEVICES} perangkat Pushover diperbolehkan."
+        )
+
+    devices_for_db = [
+        {"name": d.name.strip(), "api_key": d.key.strip()}
+        for d in payload.pushover_devices
+    ]
+
+    replace_all_pushover_devices(devices_for_db)
+
+    return {
+        "message": "Pengaturan Pushover disimpan",
+        "count": len(devices_for_db),
+    }
+
 # ==================== WEBSOCKET STREAMING ====================
 
 @app.websocket("/ws/video")
 async def video_stream(websocket: WebSocket):
     """
-    WebSocket endpoint yang HILANG sebelumnya.
-    camera.html sudah menunggu pesan berformat:
+    camera.html menunggu pesan berformat:
         {"type": "frame", "data": "<base64 jpeg>"}
-    dari alamat ws://<host>/ws/video — tapi server belum pernah
-    mendefinisikan route ini, sehingga koneksi WebSocket gagal total
-    dan gambar kamera tidak pernah muncul di Web UI meski kamera fisik
-    sudah menyala.
-
-    Endpoint ini mengambil cv_engine.current_frame (frame terbaru yang
-    sudah digambar bounding box + label oleh YOLO di main.py), meng-encode
-    ke JPEG, lalu mengirimnya sebagai base64 melalui WebSocket ini.
+    dari alamat ws://<host>/ws/video.
     """
     await websocket.accept()
     client_id = id(websocket)
@@ -185,7 +255,6 @@ async def video_stream(websocket: WebSocket):
     try:
         while True:
             if cv_engine.current_frame is not None:
-                # Encode frame (numpy array BGR dari OpenCV) ke JPEG
                 success, buffer = cv2.imencode(
                     ".jpg",
                     cv_engine.current_frame,
@@ -198,14 +267,8 @@ async def video_stream(websocket: WebSocket):
                         "data": jpg_as_text
                     })
             else:
-                # Belum ada frame (mis. kamera baru saja start dan belum
-                # sempat membaca frame pertama). Jangan putus koneksi,
-                # cukup tunggu siklus berikutnya.
                 pass
 
-            # ~15 fps ke browser. Bisa dinaikkan/diturunkan sesuai kekuatan
-            # jaringan/CPU; menaikkan terlalu tinggi hanya membebani tanpa
-            # menambah kejelasan visual karena kamera sumber juga terbatas fps-nya.
             await asyncio.sleep(1 / 15)
 
     except WebSocketDisconnect:
@@ -224,7 +287,6 @@ async def event_stream(websocket: WebSocket):
         last_alert_count = cv_engine.alert_count
 
         while True:
-            # Check for new alerts
             if cv_engine.alert_count > last_alert_count:
                 await websocket.send_json({
                     "type": "alert",
@@ -234,7 +296,6 @@ async def event_stream(websocket: WebSocket):
                 })
                 last_alert_count = cv_engine.alert_count
 
-            # Send periodic heartbeat
             await websocket.send_json({
                 "type": "heartbeat",
                 "timestamp": time.time(),
@@ -249,15 +310,8 @@ async def event_stream(websocket: WebSocket):
 @app.websocket("/ws/detect")
 async def detect_stream(websocket: WebSocket):
     """
-    WebSocket khusus untuk mengirim KOORDINAT bounding box saja (tanpa gambar),
-    dipakai jika suatu saat video mentah ditampilkan lewat <video>/getUserMedia
-    di sisi klien dan overlay box digambar terpisah di <canvas> klien.
-
-    Saat ini alur utama TIDAK memakai endpoint ini — camera.html memakai
-    /ws/video yang mengirim frame yang SUDAH digambar box+label di server
-    (lihat process_frame di main.py). Endpoint ini tetap disediakan untuk
-    kebutuhan lanjutan (mis. jika ingin overlay yang bisa di-toggle terpisah
-    dari gambar kamera).
+    WebSocket khusus untuk mengirim KOORDINAT bounding box saja (tanpa gambar).
+    Saat ini alur utama TIDAK memakai endpoint ini — camera.html memakai /ws/video.
     """
     await websocket.accept()
     client_id = id(websocket)
@@ -267,10 +321,49 @@ async def detect_stream(websocket: WebSocket):
         while True:
             boxes_data = []  # TODO: isi dari cv_engine.current_boxes jika sudah diimplementasikan
             await websocket.send_json(boxes_data)
-            await asyncio.sleep(0.1)  # Refresh ~10 kali per detik
+            await asyncio.sleep(0.1)
 
     except WebSocketDisconnect:
         print(f"Detect client {client_id} disconnected")
+    finally:
+        if client_id in active_websockets:
+            del active_websockets[client_id]
+
+
+@app.websocket("/ws/performance")
+async def performance_stream(websocket: WebSocket):
+    """
+    Mengirim data ASLI tiap 1 detik sesuai skema yang diharapkan
+    performance.html:
+        {
+          "cpu": <float, persen CPU proses server ini>,
+          "ram_mb": <float, RAM proses server ini dalam MB>,
+          "latency_ms": <float, waktu inferensi YOLO frame terakhir>,
+          "uptime_sec": <float, lama server ini sudah menyala>
+        }
+    """
+    await websocket.accept()
+    client_id = id(websocket)
+    active_websockets[client_id] = websocket
+
+    try:
+        while True:
+            cpu_percent = _process.cpu_percent(interval=None)
+            ram_mb = _process.memory_info().rss / (1024 * 1024)
+            latency_ms = float(getattr(cv_engine, "last_inference_ms", 0.0) or 0.0)
+            uptime_sec = time.time() - _server_start_time
+
+            await websocket.send_json({
+                "cpu": cpu_percent,
+                "ram_mb": ram_mb,
+                "latency_ms": latency_ms,
+                "uptime_sec": uptime_sec,
+            })
+
+            await asyncio.sleep(1)
+
+    except WebSocketDisconnect:
+        print(f"Performance client {client_id} disconnected")
     finally:
         if client_id in active_websockets:
             del active_websockets[client_id]
