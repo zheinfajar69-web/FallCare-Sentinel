@@ -1,160 +1,398 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="id" class="">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pengaturan - FallCare Sentinel</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pengaturan — Sentra Pengawas</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['"Iowan Old Style"', '"Palatino Linotype"', 'ui-serif', 'Georgia', 'serif'],
+          mono: ['"IBM Plex Mono"', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          ui: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          paper:   { DEFAULT: '#EDE6D6', soft: '#F5F0E4', deep: '#E1D8C2' },
+          ink:     { DEFAULT: '#2B281F', soft: '#4A4636', faint: '#7A7460' },
+          moss:    { DEFAULT: '#3F4B3B', deep: '#2E3A2A', bright: '#5C7052' },
+          rust:    { DEFAULT: '#9C4A2E' },
+          slate:   { 900: '#191A16', 850: '#1F211C', 800: '#262822', 700: '#33352C', 600: '#494B40' },
+          bone:    { DEFAULT: '#D8CDA8' },
+        },
+        borderRadius: { none: '0px' }
+      }
+    }
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  html { color-scheme: light; }
+  html.dark { color-scheme: dark; }
+
+  ::selection { background: #9C4A2E; color: #F5F0E4; }
+
+  /* Sidebar */
+  .sidebar-rail { width: 4.25rem; transition: width 160ms ease; }
+  .sidebar-rail:hover, .sidebar-rail.pinned-open { width: 15.5rem; }
+  .sidebar-rail .label-text {
+    opacity: 0; max-width: 0; overflow: hidden; white-space: nowrap;
+    transition: opacity 120ms ease, max-width 160ms ease;
+  }
+  .sidebar-rail:hover .label-text, .sidebar-rail.pinned-open .label-text {
+    opacity: 1; max-width: 10rem;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(122,116,96,0.35); border-radius: 3px; }
+
+  .focus-ring:focus-visible { outline: 2px solid #9C4A2E; outline-offset: 2px; }
+
+  /* Form Input Styling */
+  .input-field {
+    width: 100%;
+    background: transparent;
+    border: 1px solid rgba(43,40,31,0.2);
+    padding: 0.6rem 0.75rem;
+    font-size: 14px;
+    color: inherit;
+    transition: border-color 150ms ease;
+  }
+  .dark .input-field { border-color: rgba(216,205,168,0.2); }
+  .input-field:focus { outline: none; border-color: #5C7052; box-shadow: 0 0 0 1px #5C7052; }
+  .dark .input-field:focus { border-color: #5C7052; box-shadow: 0 0 0 1px #5C7052; }
+</style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
-  <!-- Navbar -->
-  <nav class="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex justify-between items-center">
-    <div class="flex items-center gap-3">
-      <div class="w-2.5 h-6 bg-blue-500 rounded-full"></div>
-      <h1 class="text-lg font-bold">FallCare Sentinel</h1>
-    </div>
-    <div class="flex gap-4 text-sm font-medium">
-      <a href="/" class="text-slate-400 hover:text-slate-200">Kamera</a>
-      <a href="/performance" class="text-slate-400 hover:text-slate-200">Performa</a>
-      <a href="/settings" class="text-blue-400 border-b-2 border-blue-500 pb-1">Pengaturan</a>
-    </div>
-  </nav>
 
-  <main class="max-w-4xl mx-auto p-6 space-y-6">
-    <!-- Konfigurasi Alarm -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-5">
-      <h2 class="text-base font-semibold text-slate-200 border-b border-slate-800 pb-3">Konfigurasi Alarm Android</h2>
+<body class="bg-paper dark:bg-slate-900 text-ink dark:text-bone font-ui antialiased min-h-screen">
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Jenis Nada Dering</label>
-          <select id="ringtoneType" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500">
-            <option value="alarm">Nada Alarm Sistem (Prioritas Tinggi)</option>
-            <option value="ringtone">Nada Panggilan Telepon</option>
-            <option value="notification">Nada Notifikasi Pendek</option>
-          </select>
+<div class="flex min-h-screen">
+
+  <!-- ============ SIDEBAR DESKTOP ============ -->
+  <aside id="sidebar" class="sidebar-rail hidden md:flex flex-col justify-between shrink-0 border-r border-ink/10 dark:border-bone/10 bg-paper-soft dark:bg-slate-850 overflow-hidden z-20 relative">
+    <div>
+      <div class="h-16 flex items-center gap-3 px-[1.15rem] border-b border-ink/10 dark:border-bone/10">
+        <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+          <div class="w-2 h-2 bg-rust"></div>
         </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Mode Notifikasi</label>
-          <select id="notifMode" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500">
-            <option value="keduanya">Getar dan Dering</option>
-            <option value="dering">Hanya Dering</option>
-            <option value="getar">Hanya Getar</option>
-          </select>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Durasi Alarm Berbunyi (Detik)</label>
-          <input type="number" id="alarmDuration" min="20" max="900" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" placeholder="30">
-          <p class="text-[11px] text-slate-500 mt-1">Minimal 20 detik, maksimal 900 detik (15 menit).</p>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Batas Perangkat Terhubung</label>
-          <input type="number" id="maxDevices" min="1" max="20" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" placeholder="5">
-          <p class="text-[11px] text-slate-500 mt-1">Maksimal HP Android yang diizinkan terhubung serentak.</p>
-        </div>
+        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
       </div>
 
-      <div class="pt-2">
-        <button onclick="saveSettings()" class="bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors">
-          Simpan Perubahan
+      <nav class="mt-3 flex flex-col gap-1 px-3">
+        <a href="/" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="label-text text-[14px]">Kamera</span>
+        </a>
+        <a href="/performance" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="label-text text-[14px]">Performa</span>
+        </a>
+        <a href="/settings" class="nav-item flex items-center gap-3 px-2.5 py-2.5 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone" aria-current="page">
+          <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="label-text text-[14px]">Pengaturan</span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="px-3 pb-4">
+      <button id="themeToggle" class="w-full flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg id="iconMoon" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+        <svg id="iconSun" class="w-5 h-5 shrink-0 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span class="label-text text-[14px]">Mode gelap</span>
+      </button>
+      <a href="login.html" class="w-full flex items-center gap-3 px-2.5 py-2.5 mt-1 text-ink/55 dark:text-bone/50 hover:text-rust dark:hover:text-rust hover:bg-ink/[0.04] dark:hover:bg-bone/5 focus-ring">
+        <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span class="label-text text-[14px]">Keluar</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ============ HAMBURGER MOBILE ============ -->
+  <header class="md:hidden fixed top-0 inset-x-0 z-30 h-14 flex items-center justify-between px-4 bg-paper-soft/95 dark:bg-slate-850/95 backdrop-blur border-b border-ink/10 dark:border-bone/10">
+    <button id="hamburgerBtn" class="p-2 -ml-2 focus-ring" aria-label="Buka menu" aria-expanded="false">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">ByteCraft / PENGATURAN</span>
+  </header>
+
+  <!-- Overlay menu mobile -->
+  <div id="mobileMenuOverlay" class="md:hidden fixed inset-0 z-40 hidden">
+    <div id="mobileOverlayBg" class="absolute inset-0 bg-ink/40 dark:bg-black/60"></div>
+    <nav class="absolute left-0 top-0 bottom-0 w-64 bg-paper-soft dark:bg-slate-850 border-r border-ink/10 dark:border-bone/10 flex flex-col justify-between py-4 px-3">
+      <div>
+        <div class="flex items-center gap-3 px-2.5 pb-4 mb-2 border-b border-ink/10 dark:border-bone/10">
+          <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
+            <div class="w-2 h-2 bg-rust"></div>
+          </div>
+          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
+        </div>
+        <a href="/" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
+          <span class="text-[14px]">Kamera</span>
+        </a>
+        <a href="/performance" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
+          <span class="text-[14px]">Performa</span>
+        </a>
+        <a href="/settings" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+          <span class="text-[14px]">Pengaturan</span>
+        </a>
+      </div>
+      <div>
+        <button id="themeToggleMobile" class="w-full flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50 focus-ring">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+          <span class="text-[14px]">Mode gelap</span>
         </button>
+        <a href="login.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+          <span class="text-[14px]">Keluar</span>
+        </a>
       </div>
-    </div>
+    </nav>
+  </div>
 
-    <!-- Perangkat Siaga Aktif -->
-    <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
-      <div class="flex justify-between items-center mb-4">
-        <div>
-          <h2 class="text-base font-semibold text-slate-200">Perangkat Darurat Aktif (Lokal)</h2>
-          <p class="text-xs text-slate-500">Daftar HP Android yang sedang terhubung ke WebSocket lokal.</p>
-        </div>
-        <span id="deviceCountBadge" class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-3 py-1 rounded-full font-semibold">
-          0 / 5 Siaga
-        </span>
-      </div>
+  <!-- ============ MAIN ============ -->
+  <main class="flex-1 min-w-0 pt-14 md:pt-0">
+    <div class="max-w-[800px] mx-auto px-4 md:px-8 py-6 md:py-8">
 
-      <div id="deviceListContainer" class="space-y-3">
-        <p class="text-sm text-slate-500 italic">Mencari perangkat terhubung...</p>
-      </div>
-    </div>
-  </main>
+      <header class="mb-8">
+        <h1 class="text-[22px] md:text-[26px] leading-tight">Pengaturan Sistem</h1>
+        <p class="text-[13px] text-ink/55 dark:text-bone/45 mt-0.5">Konfigurasi notifikasi darurat Pushover ke perangkat yang terdaftar.</p>
+      </header>
 
-  <script>
-    async function loadSettings() {
-      try {
-        const res = await fetch('/api/settings');
-        const data = await res.json();
-        if (data.ringtone_type) document.getElementById('ringtoneType').value = data.ringtone_type;
-        if (data.notifMode) document.getElementById('notifMode').value = data.notifMode;
-        if (data.alarm_duration) document.getElementById('alarmDuration').value = data.alarm_duration;
-        if (data.max_devices) document.getElementById('maxDevices').value = data.max_devices;
-      } catch (e) {
-        console.error("Gagal memuat setting:", e);
-      }
-    }
-
-    async function saveSettings() {
-      const payload = {
-        ringtone_type: document.getElementById('ringtoneType').value,
-        notifMode: document.getElementById('notifMode').value,
-        alarm_duration: parseInt(document.getElementById('alarmDuration').value, 10),
-        max_devices: parseInt(document.getElementById('maxDevices').value, 10)
-      };
-
-      try {
-        const res = await fetch('/api/settings', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (res.ok) {
-          alert('Pengaturan berhasil disimpan!');
-        } else {
-          alert('Gagal menyimpan pengaturan.');
-        }
-      } catch (e) {
-        alert('Terjadi kesalahan jaringan.');
-      }
-    }
-
-    async function fetchConnectedDevices() {
-      try {
-        const res = await fetch('/api/devices');
-        const data = await res.json();
-
-        document.getElementById('deviceCountBadge').innerText = `${data.total} / ${data.max_allowed} Siaga`;
-        const container = document.getElementById('deviceListContainer');
-
-        if (data.devices.length === 0) {
-          container.innerHTML = `<p class="text-sm text-slate-500 italic">Belum ada HP darurat yang terhubung di jaringan WiFi ini.</p>`;
-          return;
-        }
-
-        container.innerHTML = data.devices.map(dev => `
-          <div class="flex items-center justify-between p-3.5 bg-slate-950 border border-slate-800 rounded-lg">
-            <div class="flex items-center gap-3">
-              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
-              <div>
-                <p class="text-sm font-semibold text-slate-200">${dev.name}</p>
-                <p class="text-xs text-slate-500">IP: ${dev.ip}</p>
-              </div>
-            </div>
-            <span class="text-xs text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded bg-emerald-950/40">
-              ONLINE (${dev.connected_at})
+      <form id="settingsForm" class="space-y-6">
+        
+        <!-- Fieldset: Konfigurasi Pushover -->
+        <fieldset class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10 gap-2">
+            <legend class="text-[14px] font-medium leading-tight">Pushover API (Notifikasi Darurat)</legend>
+            <span id="counterBadge" class="font-mono text-[12px] bg-ink/5 dark:bg-bone/10 px-2 py-0.5 text-ink/70 dark:text-bone/70">
+              0 / 5 Perangkat terdaftar
             </span>
           </div>
-        `).join('');
-      } catch (e) {
-        console.error("Gagal membaca perangkat:", e);
-      }
-    }
 
-    loadSettings();
-    fetchConnectedDevices();
-    setInterval(fetchConnectedDevices, 2000);
-  </script>
+          <div class="p-4 md:p-6 space-y-5">
+            <p id="loadState" class="text-[12px] text-ink/45 dark:text-bone/40 font-mono">Memuat perangkat tersimpan…</p>
+
+            <div id="pushoverList" class="space-y-4">
+              <!-- Item Pushover akan di-render di sini oleh JavaScript -->
+            </div>
+
+            <button type="button" id="addKeyBtn" class="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-ink/30 dark:border-bone/30 text-[13px] text-ink/60 dark:text-bone/50 hover:bg-ink/[0.03] dark:hover:bg-bone/5 hover:text-ink dark:hover:text-bone focus-ring transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              Tambah Perangkat
+            </button>
+            <p id="maxLimitMsg" class="text-[12px] text-rust hidden mt-2 text-center">Batas maksimal 5 perangkat telah tercapai.</p>
+          </div>
+        </fieldset>
+
+        <!-- Submit Button & Status -->
+        <div class="flex items-center gap-4 pt-2">
+          <button type="submit" id="saveBtn" class="px-6 py-2.5 bg-moss hover:bg-moss-deep text-white dark:bg-moss-bright dark:text-slate-900 dark:hover:bg-bone text-[14px] font-medium transition-colors focus-ring">
+            Simpan Pengaturan
+          </button>
+          <span id="saveStatus" class="font-mono text-[13px] opacity-0 transition-opacity duration-300"></span>
+        </div>
+
+      </form>
+
+    </div>
+  </main>
+</div>
+
+<script>
+/* ---------- Tema (Selaras dengan Kamera) ---------- */
+const root = document.documentElement;
+function applyTheme(dark){
+  root.classList.toggle('dark', dark);
+  localStorage.setItem('sentra_theme', dark ? 'dark' : 'light');
+  document.getElementById('iconMoon').classList.toggle('hidden', dark);
+  document.getElementById('iconSun').classList.toggle('hidden', !dark);
+}
+applyTheme(localStorage.getItem('sentra_theme') === 'dark');
+document.getElementById('themeToggle').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+document.getElementById('themeToggleMobile').addEventListener('click', () => applyTheme(!root.classList.contains('dark')));
+
+/* ---------- Sidebar & Mobile Menu ---------- */
+const sidebar = document.getElementById('sidebar');
+sidebar.addEventListener('dblclick', () => sidebar.classList.toggle('pinned-open'));
+
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const mobileMenuOverlay = document.getElementById('mobileMenuOverlay');
+const mobileOverlayBg = document.getElementById('mobileOverlayBg');
+function openMobileMenu(){ mobileMenuOverlay.classList.remove('hidden'); hamburgerBtn.setAttribute('aria-expanded','true'); }
+function closeMobileMenu(){ mobileMenuOverlay.classList.add('hidden'); hamburgerBtn.setAttribute('aria-expanded','false'); }
+hamburgerBtn.addEventListener('click', openMobileMenu);
+mobileOverlayBg.addEventListener('click', closeMobileMenu);
+
+
+/* =====================================================================
+   MANAJEMEN PUSHOVER API CONFIG
+   Data dibaca/ditulis dari SQLite via backend Python (tabel
+   `pushover_devices`), lewat GET/POST /api/settings/pushover.
+   TIDAK ADA LAGI mock data — sebelumnya di sini ada mockDatabaseData
+   hardcode dan submit yang hanya setTimeout tanpa request nyata; keduanya
+   sudah diganti dengan fetch sungguhan ke backend.
+===================================================================== */
+const pushoverListContainer = document.getElementById('pushoverList');
+const addKeyBtn = document.getElementById('addKeyBtn');
+const counterBadge = document.getElementById('counterBadge');
+const maxLimitMsg = document.getElementById('maxLimitMsg');
+const settingsForm = document.getElementById('settingsForm');
+const saveStatus = document.getElementById('saveStatus');
+const loadState = document.getElementById('loadState');
+
+// Array state untuk menyimpan perangkat
+let devices = [];
+const MAX_DEVICES = 5;
+
+// Fungsi Render UI berdasarkan state array 'devices'
+function renderDevices() {
+  pushoverListContainer.innerHTML = '';
+  
+  devices.forEach((device, index) => {
+    const item = document.createElement('div');
+    item.className = "flex flex-col md:flex-row gap-3 items-start md:items-end bg-ink/[0.02] dark:bg-bone/[0.02] border border-ink/10 dark:border-bone/10 p-3 relative group";
+    
+    item.innerHTML = `
+      <div class="w-full md:w-1/3 flex flex-col gap-1.5">
+        <label for="name_${index}" class="text-[12px] text-ink/70 dark:text-bone/70">Nama Pemilik / Perangkat</label>
+        <input type="text" id="name_${index}" value="${device.name}" placeholder="Cth: HP Ayah" class="input-field focus-ring" required autocomplete="off">
+      </div>
+      <div class="w-full md:w-2/3 flex flex-col gap-1.5">
+        <label for="key_${index}" class="text-[12px] text-ink/70 dark:text-bone/70">Pushover User Key</label>
+        <div class="flex gap-2 w-full">
+          <input type="text" id="key_${index}" value="${device.key}" placeholder="Masukkan User Key (30 karakter)" class="input-field focus-ring" required autocomplete="off">
+          <button type="button" class="remove-btn shrink-0 px-3 py-2 border border-rust/50 text-rust hover:bg-rust hover:text-white transition-colors focus-ring" title="Hapus Perangkat" data-index="${index}">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Bind event hapus
+    const removeBtn = item.querySelector('.remove-btn');
+    removeBtn.addEventListener('click', () => {
+      removeDevice(index);
+    });
+    
+    // Simpan nilai ke state saat diketik agar tidak hilang saat re-render
+    item.querySelector(`#name_${index}`).addEventListener('input', (e) => { devices[index].name = e.target.value; });
+    item.querySelector(`#key_${index}`).addEventListener('input', (e) => { devices[index].key = e.target.value; });
+
+    pushoverListContainer.appendChild(item);
+  });
+
+  updateUIState();
+}
+
+function updateUIState() {
+  counterBadge.textContent = `${devices.length} / ${MAX_DEVICES} Perangkat terdaftar`;
+  
+  if (devices.length >= MAX_DEVICES) {
+    addKeyBtn.disabled = true;
+    maxLimitMsg.classList.remove('hidden');
+  } else {
+    addKeyBtn.disabled = false;
+    maxLimitMsg.classList.add('hidden');
+  }
+}
+
+function addDevice() {
+  if (devices.length < MAX_DEVICES) {
+    devices.push({ name: '', key: '' });
+    renderDevices();
+    // Fokus ke input terbaru
+    const newInputs = pushoverListContainer.querySelectorAll('input[type="text"]');
+    if(newInputs.length > 0) newInputs[newInputs.length - 2].focus();
+  }
+}
+
+function removeDevice(index) {
+  devices.splice(index, 1);
+  renderDevices();
+}
+
+addKeyBtn.addEventListener('click', addDevice);
+
+/* --- AMBIL DATA ASLI DARI DATABASE SQLITE (via backend) SAAT HALAMAN DIMUAT --- */
+async function fetchSettingsFromBackend() {
+  try {
+    const res = await fetch('/api/settings/pushover');
+    if(!res.ok) throw new Error('Gagal memuat perangkat Pushover dari server');
+    const data = await res.json();
+
+    devices = Array.isArray(data.pushover_devices) ? data.pushover_devices : [];
+    renderDevices();
+
+    loadState.textContent = devices.length > 0
+      ? `${devices.length} perangkat dimuat dari basis data.`
+      : 'Belum ada perangkat terdaftar. Tambahkan minimal satu agar notifikasi darurat bisa terkirim.';
+  } catch (err) {
+    loadState.textContent = 'Gagal memuat dari server — periksa apakah backend sedang berjalan.';
+    devices = [];
+    renderDevices();
+  }
+}
+// Eksekusi ambil data
+fetchSettingsFromBackend();
+
+
+/* --- KIRIM PERUBAHAN KE BACKEND (SQLite) SAAT FORM DISUBMIT --- */
+settingsForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  // Validasi sederhana
+  if(devices.some(d => d.name.trim() === '' || d.key.trim() === '')){
+    alert("Pastikan semua Nama dan User Key telah terisi.");
+    return;
+  }
+
+  const payload = { pushover_devices: devices };
+  const btn = document.getElementById('saveBtn');
+
+  // UI status menyimpan
+  btn.textContent = "Menyimpan...";
+  btn.disabled = true;
+  saveStatus.style.opacity = '0';
+
+  try {
+    const res = await fetch('/api/settings/pushover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    btn.textContent = "Simpan Pengaturan";
+    btn.disabled = false;
+
+    if(res.ok) {
+      saveStatus.textContent = "✔ Pengaturan berhasil disimpan ke basis data.";
+      saveStatus.className = "font-mono text-[13px] text-moss dark:text-moss-bright transition-opacity duration-300";
+    } else {
+      const errBody = await res.json().catch(() => ({}));
+      saveStatus.textContent = "✘ " + (errBody.detail || "Gagal menyimpan pengaturan.");
+      saveStatus.className = "font-mono text-[13px] text-rust transition-opacity duration-300";
+    }
+    saveStatus.style.opacity = '1';
+    setTimeout(() => { saveStatus.style.opacity = '0'; }, 3500);
+
+  } catch (err) {
+    btn.textContent = "Simpan Pengaturan";
+    btn.disabled = false;
+    saveStatus.textContent = "✘ Tidak dapat menghubungi server. Periksa koneksi backend.";
+    saveStatus.className = "font-mono text-[13px] text-rust transition-opacity duration-300";
+    saveStatus.style.opacity = '1';
+  }
+});
+
+</script>
+
 </body>
 </html>
