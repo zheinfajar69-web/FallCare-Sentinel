@@ -7,6 +7,7 @@ import asyncio
 import cv2
 import base64
 from typing import Dict, Optional, List
+import json
 import threading
 import time
 import os
@@ -39,11 +40,8 @@ app.add_middleware(
 cv_engine = FallDetectionEngine()
 cv_thread: Optional[threading.Thread] = None
 
-# Tracking Active WebSockets
+# Active WebSockets
 active_video_websockets: Dict[int, WebSocket] = {}
-
-# POOL MULTI-DEVICE ANDROID:
-# Menyimpan data: { client_id: {"ws": WebSocket, "ip": str, "name": str, "connected_at": str} }
 connected_emergency_devices: Dict[int, dict] = {}
 
 # Resource Monitoring
@@ -133,7 +131,6 @@ async def get_status():
 
 @app.get("/api/devices")
 async def get_connected_devices():
-    """Mengembalikan daftar HP darurat yang saat ini terhubung dan siaga."""
     device_list = []
     for cid, info in connected_emergency_devices.items():
         device_list.append({
@@ -211,31 +208,27 @@ async def video_stream(websocket: WebSocket):
 
 @app.websocket("/ws/events")
 async def event_stream(websocket: WebSocket):
-    """Menerima koneksi dari banyak HP Android sekaligus & broadcast serentak."""
     await websocket.accept()
     client_id = id(websocket)
     client_ip = websocket.client.host if websocket.client else "Unknown"
 
-    # Periksa batas maksimal device
     max_allowed = int(get_setting("max_devices", 5))
     if len(connected_emergency_devices) >= max_allowed:
         await websocket.close(code=1008, reason="Kuota perangkat darurat penuh.")
         return
 
-    # Registrasi device darurat ke pool
     connected_emergency_devices[client_id] = {
         "ws": websocket,
         "ip": client_ip,
-        "name": f"Device-{client_ip.split('.')[-1]}", # Default penamaan otomatis
+        "name": f"Device-{client_ip.split('.')[-1]}",
         "connected_at": time.strftime("%H:%M:%S")
     }
-    print(f"[+] Device Darurat Baru Terhubung: {client_ip} (Total Siaga: {len(connected_emergency_devices)})")
+    print(f"[+] Device Darurat Terhubung: {client_ip} (Total: {len(connected_emergency_devices)})")
 
     try:
         last_alert_count = cv_engine.alert_count
 
         while True:
-            # 1. Mendeteksi handshake / update nama dari Android
             try:
                 msg = await asyncio.wait_for(websocket.receive_text(), timeout=0.01)
                 data = json.loads(msg)
@@ -244,7 +237,6 @@ async def event_stream(websocket: WebSocket):
             except asyncio.TimeoutError:
                 pass
 
-            # 2. Trigger Jatuh Terdeteksi -> Broadcast ke SELURUH device secara paralel
             if cv_engine.alert_count > last_alert_count:
                 current_mode = get_setting("notifMode", "keduanya")
                 raw_duration = int(get_setting("alarm_duration", 30))
@@ -261,14 +253,12 @@ async def event_stream(websocket: WebSocket):
                     "tracking_data": cv_engine.tracking_states
                 }
 
-                # Kirim serentak ke semua HP tanpa menunggu antrian
                 tasks = [dev["ws"].send_json(alert_payload) for dev in connected_emergency_devices.values()]
                 if tasks:
                     await asyncio.gather(*tasks, return_exceptions=True)
 
                 last_alert_count = cv_engine.alert_count
 
-            # 3. Heartbeat keeping
             await websocket.send_json({
                 "type": "heartbeat",
                 "timestamp": time.time(),
