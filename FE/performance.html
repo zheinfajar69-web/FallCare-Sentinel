@@ -31,7 +31,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-<!-- Menggunakan Chart.js untuk grafik performa 30 detik -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js" crossorigin="anonymous"></script>
 
 <style>
@@ -40,7 +39,6 @@
 
   ::selection { background: #9C4A2E; color: #F5F0E4; }
 
-  /* Sidebar: collapsed = ikon saja, hover = melebar. */
   .sidebar-rail { width: 4.25rem; transition: width 160ms ease; }
   .sidebar-rail:hover, .sidebar-rail.pinned-open { width: 15.5rem; }
   .sidebar-rail .label-text {
@@ -81,19 +79,19 @@
         <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
           <div class="w-2 h-2 bg-rust"></div>
         </div>
-        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+        <span class="label-text font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
       </div>
 
       <nav class="mt-3 flex flex-col gap-1 px-3">
-        <a href="camera.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+        <a href="/" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
           <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
           <span class="label-text text-[14px]">Kamera</span>
         </a>
-        <a href="performance.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone" aria-current="page">
+        <a href="/performance" class="nav-item flex items-center gap-3 px-2.5 py-2.5 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone" aria-current="page">
           <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
           <span class="label-text text-[14px]">Performa</span>
         </a>
-        <a href="settings.html" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
+        <a href="/settings" class="nav-item flex items-center gap-3 px-2.5 py-2.5 text-ink/55 dark:text-bone/50 hover:text-ink dark:hover:text-bone hover:bg-ink/[0.04] dark:hover:bg-bone/5">
           <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
           <span class="label-text text-[14px]">Pengaturan</span>
         </a>
@@ -118,7 +116,7 @@
     <button id="hamburgerBtn" class="p-2 -ml-2 focus-ring" aria-label="Buka menu" aria-expanded="false">
       <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
-    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">SENTRA-01 / PERFORMA</span>
+    <span class="font-mono text-[12px] tracking-wide text-ink/60 dark:text-bone/50">ByteCraft / PERFORMA</span>
     <span id="mobileConnectionStatus" class="w-2 h-2 bg-moss-bright rounded-full status-live"></span>
   </header>
 
@@ -131,17 +129,17 @@
           <div class="w-7 h-7 shrink-0 border-2 border-ink dark:border-bone flex items-center justify-center">
             <div class="w-2 h-2 bg-rust"></div>
           </div>
-          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">SENTRA-01</span>
+          <span class="font-mono text-[13px] tracking-wide text-ink/70 dark:text-bone/60">ByteCraft</span>
         </div>
-        <a href="camera.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+        <a href="/" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8a2 2 0 0 1 2-2h2l1.2-1.6A2 2 0 0 1 10.8 3.6h2.4a2 2 0 0 1 1.6.8L16 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8Z"/><circle cx="12" cy="13" r="3.2"/></svg>
           <span class="text-[14px]">Kamera</span>
         </a>
-        <a href="performance.html" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone">
+        <a href="/performance" class="flex items-center gap-3 px-2.5 py-3 bg-ink/[0.06] dark:bg-bone/10 text-ink dark:text-bone">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 8 10l4 3 4-6 5 10"/><path d="M3 21h18"/></svg>
           <span class="text-[14px]">Performa</span>
         </a>
-        <a href="settings.html" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
+        <a href="/settings" class="flex items-center gap-3 px-2.5 py-3 text-ink/55 dark:text-bone/50">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
           <span class="text-[14px]">Pengaturan</span>
         </a>
@@ -177,7 +175,7 @@
       </header>
 
       <section class="grid grid-cols-1 md:grid-cols-2 gap-5">
-        
+
         <!-- ===== CPU CARD ===== -->
         <article class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850 flex flex-col">
           <div class="flex items-center justify-between px-4 py-3 border-b border-ink/10 dark:border-bone/10">
@@ -236,8 +234,7 @@ function applyTheme(dark){
   localStorage.setItem('sentra_theme', dark ? 'dark' : 'light');
   document.getElementById('iconMoon').classList.toggle('hidden', dark);
   document.getElementById('iconSun').classList.toggle('hidden', !dark);
-  
-  // Perbarui warna grafik setiap pergantian tema
+
   if(window.updateChartColors) window.updateChartColors(dark);
 }
 applyTheme(localStorage.getItem('sentra_theme') === 'dark');
@@ -262,29 +259,23 @@ function tickClock(){
 }
 tickClock(); setInterval(tickClock, 1000);
 
-/* =====================================================================
-   MANAJEMEN GRAFIK (Chart.js)
-   Visualisasi data dalam rentang waktu 30 detik (30 titik data).
-===================================================================== */
 Chart.defaults.font.family = '"IBM Plex Mono", monospace';
 Chart.defaults.font.size = 11;
-Chart.defaults.plugins.tooltip.enabled = false; 
+Chart.defaults.plugins.tooltip.enabled = false;
 
-// Buat array kosong isi 30 item untuk sumbu X (detik ke-30 hingga detik ke-1)
 const labels30s = Array.from({length: 30}, (_, i) => (30 - i) + 'd');
 
-// Fungsi pembantu membuat grafik untuk menghindari pengulangan kode
 function createLineChart(canvasId, colorStr, yAxisMax = null, isUptime = false) {
   const ctx = document.getElementById(canvasId).getContext('2d');
-  
+
   return new Chart(ctx, {
     type: 'line',
     data: {
       labels: labels30s,
       datasets: [{
-        data: Array(30).fill(0), // Nilai awal 0
+        data: Array(30).fill(0),
         borderColor: colorStr,
-        backgroundColor: colorStr + '20', // Opacity 20% untuk fill
+        backgroundColor: colorStr + '20',
         borderWidth: 2,
         fill: true,
         pointRadius: 0,
@@ -295,19 +286,19 @@ function createLineChart(canvasId, colorStr, yAxisMax = null, isUptime = false) 
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 250, easing: 'linear' }, // Animasi mengalir
+      animation: { duration: 250, easing: 'linear' },
       scales: {
-        x: { 
-          display: true, 
+        x: {
+          display: true,
           grid: { color: 'rgba(122,116,96,0.1)', drawBorder: false },
           ticks: { maxTicksLimit: 6 }
         },
-        y: { 
-          display: true, 
-          min: 0, 
+        y: {
+          display: true,
+          min: 0,
           max: yAxisMax,
           grid: { color: 'rgba(122,116,96,0.1)', drawBorder: false },
-          ticks: { 
+          ticks: {
             callback: function(value) {
               if(isUptime) return value === 100 ? 'UP' : 'DOWN';
               return value;
@@ -320,51 +311,45 @@ function createLineChart(canvasId, colorStr, yAxisMax = null, isUptime = false) 
   });
 }
 
-// Inisialisasi 4 grafik
 const charts = {
-  cpu: createLineChart('chartCpu', '#5C7052', 100),       // Moss Bright
-  ram: createLineChart('chartRam', '#9C4A2E', null),      // Rust (Max dinamis sesuai kapasitas)
-  lat: createLineChart('chartLat', '#4A4636', null),      // Ink soft (Max dinamis ms)
-  up:  createLineChart('chartUptime', '#5C7052', 105, true) // Skala statis 0-100 untuk status hidup (UP)
+  cpu: createLineChart('chartCpu', '#5C7052', 100),
+  ram: createLineChart('chartRam', '#9C4A2E', null),
+  lat: createLineChart('chartLat', '#4A4636', null),
+  up:  createLineChart('chartUptime', '#5C7052', 105, true)
 };
 
-// Ubah warna teks/grid secara halus berdasarkan mode terang/gelap
 window.updateChartColors = function(isDark) {
   const gridColor = isDark ? 'rgba(216,205,168,0.08)' : 'rgba(43,40,31,0.08)';
   const textColor = isDark ? 'rgba(216,205,168,0.5)' : 'rgba(43,40,31,0.5)';
-  
+
   Object.values(charts).forEach(chart => {
     chart.options.scales.x.grid.color = gridColor;
     chart.options.scales.y.grid.color = gridColor;
     chart.options.scales.x.ticks.color = textColor;
     chart.options.scales.y.ticks.color = textColor;
-    
-    // Perbarui warna garis Latency (karena menggunakan warna netral ink/bone)
+
     if(chart.canvas.id === 'chartLat') {
-      chart.data.datasets[0].borderColor = isDark ? '#D8CDA8' : '#4A4636'; // Bone / Ink Soft
+      chart.data.datasets[0].borderColor = isDark ? '#D8CDA8' : '#4A4636';
       chart.data.datasets[0].backgroundColor = isDark ? 'rgba(216,205,168,0.15)' : 'rgba(74,70,54,0.15)';
     }
     chart.update();
   });
 };
-// Eksekusi warna pertama kali
 window.updateChartColors(root.classList.contains('dark'));
 
 /* =====================================================================
-   KONEKSI BACKEND (WebSocket)
-   TIDAK ADA PLACEHOLDER: Ini adalah jembatan langsung ke server Python.
-   Format JSON dari server yang diharapkan:
+   KONEKSI BACKEND (WebSocket /ws/performance)
+   Format JSON dari server:
    {
-     "cpu": 45,             // persentase
-     "ram_mb": 1250,        // penggunaan dalam MB
-     "latency_ms": 32,      // kecepatan inferensi YOLO dalam ms
-     "uptime_sec": 86400    // total detik server menyala
+     "cpu": 45,
+     "ram_mb": 1250,
+     "latency_ms": 32,
+     "uptime_sec": 86400
    }
 ===================================================================== */
 let wsPerf = null;
 let fallbackInterval = null;
 
-// Fungsi untuk mendorong data baru ke array chart (menggeser data lama)
 function pushDataToChart(chart, newValue) {
   const dataArray = chart.data.datasets[0].data;
   dataArray.push(newValue);
@@ -372,41 +357,36 @@ function pushDataToChart(chart, newValue) {
   chart.update();
 }
 
-// Fungsi helper merubah detik menjadi HH:MM:SS
 function formatUptime(totalSeconds) {
   const d = Math.floor(totalSeconds / (3600*24));
   const h = Math.floor(totalSeconds % (3600*24) / 3600);
   const m = Math.floor(totalSeconds % 3600 / 60);
   const s = Math.floor(totalSeconds % 60);
-  
+
   let str = "";
   if (d > 0) str += `${d}h `;
   str += `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   return str;
 }
 
-// Update DOM dan Grafik setiap kali data diterima
 function updateMetricsUI(data) {
-  // Update Teks Angka
   document.getElementById('valCpu').textContent = `${data.cpu.toFixed(1)}%`;
   document.getElementById('valRam').textContent = `${Math.round(data.ram_mb)} MB`;
   document.getElementById('valLat').textContent = `${Math.round(data.latency_ms)} ms`;
   document.getElementById('valUptime').textContent = formatUptime(data.uptime_sec);
-  
-  // Update Grafik (menggeser ke kiri untuk durasi 30 detik)
+
   pushDataToChart(charts.cpu, data.cpu);
   pushDataToChart(charts.ram, data.ram_mb);
   pushDataToChart(charts.lat, data.latency_ms);
-  
-  // Grafik uptime dipetakan flat 100% jika data jalan
-  pushDataToChart(charts.up, 100); 
+
+  pushDataToChart(charts.up, 100);
 }
 
 function setConnectionUI(connected) {
   const dot = document.getElementById('connIndicator');
   const txt = document.getElementById('connText');
   const mobileDot = document.getElementById('mobileConnectionStatus');
-  
+
   if(connected) {
     dot.className = 'w-2 h-2 rounded-full bg-moss-bright status-live';
     mobileDot.className = 'w-2 h-2 rounded-full bg-moss-bright status-live';
@@ -418,17 +398,16 @@ function setConnectionUI(connected) {
   }
 }
 
-// Inisialisasi Koneksi Real ke Backend
 function connectPerformanceSocket() {
   try {
     const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws/performance';
     wsPerf = new WebSocket(url);
-    
+
     wsPerf.onopen = () => {
       setConnectionUI(true);
       if(fallbackInterval) { clearInterval(fallbackInterval); fallbackInterval = null; }
     };
-    
+
     wsPerf.onmessage = (ev) => {
       try {
         const payload = JSON.parse(ev.data);
@@ -437,34 +416,31 @@ function connectPerformanceSocket() {
         console.error("Format data performa tidak valid", e);
       }
     };
-    
+
     wsPerf.onclose = () => {
       setConnectionUI(false);
       wsPerf = null;
-      startSimulationFallback(); // Fallback jika socket tertutup/belum ter-deploy
-      setTimeout(connectPerformanceSocket, 5000); // Reconnect loop
+      startSimulationFallback();
+      setTimeout(connectPerformanceSocket, 5000);
     };
-    
+
     wsPerf.onerror = () => {
       if(wsPerf) wsPerf.close();
     };
-    
+
   } catch(e) {
     setConnectionUI(false);
     startSimulationFallback();
   }
 }
 
-// --- FALLBACK UNTUK PENGUJIAN FRONTEND UI ---
-// (Berjalan otomatis jika /ws/performance pada server backend Python belum hidup)
-let simUptime = 12450; // Detik fiktif
+let simUptime = 12450;
 let simCpu = 25;
 function startSimulationFallback() {
   if(fallbackInterval) return;
   setConnectionUI(false);
-  
+
   fallbackInterval = setInterval(() => {
-    // Generasi data tiruan yang masuk akal
     simCpu = Math.max(5, Math.min(95, simCpu + (Math.random() * 10 - 5)));
     const simData = {
       cpu: simCpu,
@@ -476,7 +452,6 @@ function startSimulationFallback() {
   }, 1000);
 }
 
-// Mulai menghubungkan saat halaman termuat
 connectPerformanceSocket();
 
 </script>
