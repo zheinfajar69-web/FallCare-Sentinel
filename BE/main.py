@@ -1,152 +1,164 @@
 import cv2
 import time
-import torch
 import requests
-import winsound
+import subprocess
+import numpy as np
 from ultralytics import YOLO
 
-PUSHOVER_APP_TOKEN = "GANTI_DENGAN_APP_TOKEN_PUSHOVER"
-PUSHOVER_USER_KEY = "GANTI_DENGAN_USER_KEY_PUSHOVER"
-THRESHOLD_JATUH = 0.60 
-DURASI_PINGSAN = 7 
+# ================= KONDISI & KONFIGURASI =================
+PUSHOVER_TOKEN = "GANTI_DENGAN_APP_TOKEN_ANDA"
+PUSHOVER_USER = "GANTI_DENGAN_USER_KEY_ANDA"
+YOLO_MODEL = "yolov8n-pose.pt"
 
-def kirim_pushover_emergency(pesan):
-    """Mengirim notifikasi darurat Pushover (Priority 2 / Siren)."""
+STATE_NORMAL = "NORMAL"
+STATE_POTENTIAL = "POTENTIAL_FALL"
+STATE_FAINTED = "FAINTED"
+STATE_ALERT = "ALERT_SENT"
+
+FALL_TIME_THRESHOLD = 7.0 
+ALARM_AUDIO_PATH = "/usr/share/sounds/alsa/Front_Center.wav" 
+# =========================================================
+
+model = YOLO(YOLO_MODEL)
+tracking_states = {}
+
+def trigger_pushover_alert(track_id):
     url = "https://api.pushover.net/1/messages.json"
-    payload = {
-        "token": PUSHOVER_APP_TOKEN,
-        "user": PUSHOVER_USER_KEY,
-        "message": pesan,
-        "title": "🚨 EMERGENCY: ORANG PINGSAN!",
-        "priority": 2,
-        "retry": 30,
-        "expire": 3600,
+    data = {
+        "token": PUSHOVER_TOKEN,
+        "user": PUSHOVER_USER,
+        "message": f"EMERGENCY: Person {track_id} has fainted and remained down!",
+        "priority": 2,          
+        "retry": 30,            
+        "expire": 3600,         
         "sound": "siren"
     }
     try:
-        response = requests.post(url, data=payload, timeout=5)
-        if response.status_code == 200:
-            print("[PUSHOVER] Notifikasi darurat berhasil terkirim!")
-        else:
-            print(f"[PUSHOVER] Gagal kirim. Status: {response.status_code}")
+        response = requests.post(url, data=data, timeout=3)
+        if response.status_code != 200:
+            print(f"Pushover Error: {response.text}")
     except Exception as e:
-        print(f"[PUSHOVER] Gangguan internet: {e}")
+        print(f"Pushover Connection Failed: {e}")
 
-# Menggunakan GPU RTX 4050 jika CUDA tersedia, jika tidak otomatis ke CPU
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print(f"=== SISTER DETEKSI PINGSAN MULTI-PERSON (YOLOv8) ===")
-print(f"Running on Device: {device.upper()}")
-
-# Load model YOLOv8 Pose (Otomatis mendownload weights jika belum ada)
-model = YOLO('yolov8n-pose.pt')
+def play_alarm():
+    try:
+        # Menggunakan paplay (PulseAudio) atau aplay (ALSA)
+        subprocess.Popen(["aplay", "-q", ALARM_AUDIO_PATH], 
+                         stdout=subprocess.DEVNULL, 
+                         stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        pass # Hindari terminal spam jika file/command tidak ada
 
 cap = cv2.VideoCapture(0)
-
-# Dictionary untuk menyimpan state tracking per ID orang:
-# { person_id: {'status': 'NORMAL', 'waktu_jatuh': 0} }
-person_states = {}
-
-print("Sistem aktif! Tekan tombol 'q' untuk berhenti.")
 
 while cap.isOpened():
     ret, frame = cap.read()
     if not ret:
-        print("Gagal mengambil frame dari kamera.")
         break
-
-# ... existing code ...
-    frame = cv2.flip(frame, 1)
-
-    # Deteksi dan Tracking Multi-Person (Conf 0.15 agar tetap peka saat orang tergeletak)
-    results = model.track(frame, persist=True, device=device, verbose=False, conf=0.15)
-
-    annotated_frame = frame.copy()
-
-    # Pengecekan ada objek terdeteksi (tidak tergantung boxes.id != None)
-    if results and len(results) > 0 and results[0].boxes is not None and len(results[0].boxes) > 0:
-        boxes = results[0].boxes
-        keypoints = results[0].keypoints.xyn  # Koord ter-normalisasi (N, 17, 2)
         
-        # Ambil ID dari tracker, jika tracker belum siap gunakan ID fallback (1, 2, dst)
-        if boxes.id is not None:
-            track_ids = boxes.id.int().cpu().tolist()
-        else:
-            track_ids = list(range(1, len(boxes) + 1))
-
-        for i, p_id in enumerate(track_ids):
-            # Inisialisasi state jika ID baru terdeteksi
-            if p_id not in person_states:
-                person_states[p_id] = {'status': 'NORMAL', 'waktu_jatuh': 0}
-
-            kpts = keypoints[i] # Keypoints untuk person ID ini (17, 2)
+    results = model.track(frame, persist=True, classes=0, verbose=False)
+    current_ids = []
+    
+    if results[0].boxes.id is not None:
+        boxes = results[0].boxes.xyxy.cpu().numpy()
+        track_ids = results[0].boxes.id.int().cpu().tolist()
+        keypoints = results[0].keypoints.data.cpu().numpy()
+        
+        for box, track_id, kpts in zip(boxes, track_ids, keypoints):
+            current_ids.append(track_id)
             
-            # Keypoint COCO Pose: 5=Bahu Kiri, 6=Bahu Kanan, 11=Pinggul Kiri, 12=Pinggul Kanan
-            x_bahu = (kpts[5][0].item() + kpts[6][0].item()) / 2.0
-            y_bahu = (kpts[5][1].item() + kpts[6][1].item()) / 2.0
+            x1, y1, x2, y2 = map(int, box)
+            w = x2 - x1
+            h = y2 - y1
+            
+            # Inisialisasi state & memori postur
+            if track_id not in tracking_states:
+                tracking_states[track_id] = {
+                    'state': STATE_NORMAL, 
+                    'timestamp': None,
+                    'max_h': h # Simpan tinggi awal sebagai baseline
+                }
+                
+            state_info = tracking_states[track_id]
+            
+            # Adaptasi Baseline: Hanya update tinggi maksimal jika objek sedang NORMAL dan berdiri (h > w)
+            if state_info['state'] == STATE_NORMAL and h > w:
+                # Moving average untuk beradaptasi dengan perubahan jarak ke kamera
+                state_info['max_h'] = max(state_info['max_h'] * 0.95 + h * 0.05, h)
+                
+            baseline_h = state_info['max_h']
+            
+            s_l, s_r = kpts[5], kpts[6]
+            h_l, h_r = kpts[11], kpts[12]
+            
+            valid_keypoints = all(pt[2] > 0.4 for pt in [s_l, s_r, h_l, h_r])
+            
+            # EVALUASI 3 KONDISI BAD CASES
+            is_horizontal = w > (1.3 * h)
+            is_crumpled = h < (0.5 * baseline_h)
+            
+            keypoint_collapse = False
+            if valid_keypoints:
+                shoulder_y = (s_l[1] + s_r[1]) / 2.0
+                hip_y = (h_l[1] + h_r[1]) / 2.0
+                # Jika jarak vertikal bahu ke pinggul kurang dari 20% tinggi normal objek
+                if abs(shoulder_y - hip_y) < (0.2 * baseline_h):
+                    keypoint_collapse = True
+            
+            is_falling_condition = is_horizontal or is_crumpled or keypoint_collapse
 
-            x_pinggul = (kpts[11][0].item() + kpts[12][0].item()) / 2.0
-            y_pinggul = (kpts[11][1].item() + kpts[12][1].item()) / 2.0
+            # STATE MACHINE
+            current_time = time.time()
+            
+            if is_falling_condition:
+                if state_info['state'] == STATE_NORMAL:
+                    state_info['state'] = STATE_POTENTIAL
+                    state_info['timestamp'] = current_time
+                    
+                elif state_info['state'] == STATE_POTENTIAL:
+                    elapsed = current_time - state_info['timestamp']
+                    if elapsed >= FALL_TIME_THRESHOLD:
+                        state_info['state'] = STATE_FAINTED
+                        
+                elif state_info['state'] == STATE_FAINTED:
+                    play_alarm()
+                    trigger_pushover_alert(track_id)
+                    state_info['state'] = STATE_ALERT
+                    
+                elif state_info['state'] == STATE_ALERT:
+                    # Delay pemanggilan alarm agar audio tidak bertumpuk patah-patah
+                    if int(current_time * 10) % 20 == 0: 
+                        play_alarm()
+            else:
+                # Jika berdiri kembali, interupsi siklus pingsan
+                state_info['state'] = STATE_NORMAL
+                state_info['timestamp'] = None
 
-            delta_x = abs(x_bahu - x_pinggul)
-            delta_y = abs(y_bahu - y_pinggul)
+            # VISUALISASI
+            color = (0, 255, 0)
+            label = f"ID: {track_id} | {state_info['state']} | H:{h}/{int(baseline_h)}"
+            
+            if state_info['state'] == STATE_POTENTIAL:
+                color = (0, 165, 255)
+                elapsed = current_time - state_info['timestamp']
+                label += f" | {max(0, int(FALL_TIME_THRESHOLD - elapsed))}s"
+            elif state_info['state'] in [STATE_FAINTED, STATE_ALERT]:
+                color = (0, 0, 255)
+                
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            cv2.putText(frame, label, (x1, max(y1 - 10, 0)), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-            # Kondisi Horisontal & Rendah (Mencegah false alarm saat jongkok)
-            posisi_horisontal = delta_x > (delta_y * 0.7)
-            posisi_rendah = y_bahu > THRESHOLD_JATUH
-            tergeletak = posisi_rendah and posisi_horisontal
+    # Cleanup Memory
+    stale_ids = [tid for tid in tracking_states if tid not in current_ids]
+    for tid in stale_ids:
+        del tracking_states[tid]
 
-            st = person_states[p_id]['status']
-
-            if st == "NORMAL":
-                if tergeletak:
-                    person_states[p_id]['status'] = "POTENTIAL_FALL"
-                    person_states[p_id]['waktu_jatuh'] = time.time()
-                    print(f"[LOG] ID #{p_id} terindikasi tergeletak/pingsan. Menghitung durasi...")
-
-            elif st == "POTENTIAL_FALL":
-                if not tergeletak:
-                    person_states[p_id]['status'] = "NORMAL"
-                    print(f"[LOG] ID #{p_id} bangkit/berdiri tegak. Status reset ke NORMAL.")
-                elif (time.time() - person_states[p_id]['waktu_jatuh']) > DURASI_PINGSAN:
-                    person_states[p_id]['status'] = "FAINTED"
-
-            elif st == "FAINTED":
-                print(f"[ALARM] WARNING! ID #{p_id} TERDETEKSI PINGSAN!")
-                winsound.Beep(1000, 500)
-                kirim_pushover_emergency(f"🚨 ALERT! ID #{p_id} pingsan di area pantauan kamera!")
-                person_states[p_id]['status'] = "ALERT_SENT"
-
-            elif st == "ALERT_SENT":
-                if not tergeletak:
-                    person_states[p_id]['status'] = "NORMAL"
-                    print(f"[AUTO-RESET] ID #{p_id} telah bangkit atau dievakuasi. Reset ke NORMAL.")
-
-            box = boxes[i].xyxy[0].cpu().numpy().astype(int)
-            x1, y1, x2, y2 = box[0], box[1], box[2], box[3]
-
-            curr_st = person_states[p_id]['status']
-            warna_hud = (0, 255, 0) # Hijau
-            if curr_st == "POTENTIAL_FALL":
-                warna_hud = (0, 165, 255) # Oranye
-            elif curr_st in ["FAINTED", "ALERT_SENT"]:
-                warna_hud = (0, 0, 255) # Merah
-
-            # Gambar Bounding Box & Label Status untuk Setiap Orang
-            cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), warna_hud, 2)
-            cv2.putText(annotated_frame, f"ID #{p_id} | {curr_st}", (x1, max(y1 - 10, 20)),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, warna_hud, 2)
-            cv2.putText(annotated_frame, f"Y-Bahu: {y_bahu:.2f}", (x1, y1 + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-
-            if curr_st == "POTENTIAL_FALL":
-                sisa_waktu = int(DURASI_PINGSAN - (time.time() - person_states[p_id]['waktu_jatuh']))
-                cv2.putText(annotated_frame, f"Mengecek Pingsan: {sisa_waktu}s", (x1, y1 + 40),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 2)
-
-    cv2.imshow('Sistem Deteksi Pingsan Multi-Person (YOLOv8)', annotated_frame)
+    cv2.imshow("Advanced Fall Detection", frame)
 
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
 cap.release()
 cv2.destroyAllWindows()
+
