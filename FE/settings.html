@@ -199,14 +199,7 @@
 
           <div class="p-4 md:p-6 space-y-5">
             <!-- Pilihan Jenis Nada Dering -->
-            <div class="flex flex-col gap-1.5">
-              <label for="ringtoneType" class="text-[12px] text-ink/70 dark:text-bone/70">Jenis Nada Dering HP</label>
-              <select id="ringtoneType" class="select-field focus-ring">
-                <option value="alarm">Nada Alarm Sistem (Paling Kencang)</option>
-                <option value="ringtone">Nada Panggilan Telepon</option>
-                <option value="notification">Nada Notifikasi Pendek</option>
-              </select>
-            </div>
+            
 
             <!-- Input Durasi Alarm -->
             <div class="flex flex-col gap-1.5">
@@ -254,24 +247,6 @@
           <span id="saveStatus" class="font-mono text-[13px] opacity-0 transition-opacity duration-300"></span>
         </div>
       </form>
-
-      <!-- ==================================================================
-           DAFTAR PERANGKAT DARURAT AKTIF (LOKAL, VIA IP)
-      =================================================================== -->
-      <section class="border border-ink/12 dark:border-bone/12 bg-paper-soft dark:bg-slate-850">
-        <div class="flex justify-between items-center px-4 py-3 border-b border-ink/10 dark:border-bone/10 gap-2">
-          <h2 class="text-[14px] font-medium leading-tight">Perangkat Darurat Aktif (Lokal)</h2>
-          <span id="deviceCountBadge" class="font-mono text-[12px] bg-ink/5 dark:bg-bone/10 px-2 py-0.5 text-ink/70 dark:text-bone/70">
-            0 / 5 Terhubung
-          </span>
-        </div>
-
-        <div class="p-4 md:p-6">
-          <div id="deviceListContainer" class="space-y-3">
-            <p class="text-[13px] text-ink/45 dark:text-bone/40 italic">Menunggu perangkat terhubung…</p>
-          </div>
-        </div>
-      </section>
 
       <!-- ==================================================================
            GANTI PASSWORD ADMIN
